@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import axios from 'axios'
+import axios from '../utils/axios'
 import BusSelector from './BusSelector'
 import './ScheduleAdmin.css'
 import { API } from '../config/api'

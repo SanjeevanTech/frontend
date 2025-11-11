@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import axios from 'axios'
+import axios from './utils/axios'
 import { format, parseISO, startOfDay, endOfDay } from 'date-fns'
 import './App.css'
 import PassengerTable from './components/PassengerTable.jsx'

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import axios from '../utils/axios';
 import './RouteManagement.css';
 import { API } from '../config/api';
 
