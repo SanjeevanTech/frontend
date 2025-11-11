@@ -1,0 +1,28 @@
+// Centralized API Configuration
+// All API endpoints should use these constants
+
+// Python Server API (for ESP32 communication, power management, etc.)
+export const PYTHON_API_URL = import.meta.env.VITE_PYTHON_API_URL || 'http://localhost:8888';
+
+// Node.js Backend API (for MongoDB operations)
+export const NODE_API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
+// Full API paths
+export const API = {
+  // Python Server endpoints
+  python: {
+    buses: `${PYTHON_API_URL}/api/buses`,
+    powerConfig: `${PYTHON_API_URL}/api/power-config`,
+    extractFace: `${PYTHON_API_URL}/api/extract-face-embedding`,
+  },
+  
+  // Node.js Backend endpoints (use relative paths for Vite proxy)
+  node: {
+    busRoutes: '/api/bus-routes',
+    busSchedule: (busId) => `/api/bus-schedule/${busId}`,
+    saveBusSchedule: '/api/bus-schedule',
+    syncPowerConfig: '/api/sync-power-config',
+  }
+};
+
+export default API;
