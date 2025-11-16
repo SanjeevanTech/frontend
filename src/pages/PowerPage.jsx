@@ -1,0 +1,497 @@
+import { useState, useEffect } from 'react'
+import axios from '../utils/axios'
+import { API } from '../config/api'
+import LoadingSpinner from '../components/LoadingSpinner'
+import { toast } from 'react-hot-toast'
+
+function PowerPage() {
+  const [busConfigs, setBusConfigs] = useState({})
+  const [formValues, setFormValues] = useState({})
+  const [loading, setLoading] = useState(true)
+  const [lastUpdate, setLastUpdate] = useState(null)
+  const [addBusModalOpen, setAddBusModalOpen] = useState(false)
+  const [deleteConfirmModal, setDeleteConfirmModal] = useState({ open: false, busId: null, boardCount: 0 })
+  const [newBusData, setNewBusData] = useState({
+    bus_id: ''
+  })
+
+  useEffect(() => {
+    loadBuses()
+    const interval = setInterval(loadBuses, 5000)
+    return () => clearInterval(interval)
+  }, [])
+
+  const loadBuses = async () => {
+    try {
+      const response = await axios.get(API.node.buses)
+      const data = response.data
+      setBusConfigs(data)
+      setFormValues(Object.fromEntries(
+        Object.entries(data).map(([busId, config]) => [
+          busId,
+          {
+            bus_name: config.bus_name || busId,
+            deep_sleep_enabled: config.deep_sleep_enabled !== false,
+            maintenance_interval: config.maintenance_interval ?? 5,
+            maintenance_duration: config.maintenance_duration ?? 3
+          }
+        ])
+      ))
+      setLastUpdate(new Date())
+    } catch (error) {
+      console.error('Error loading buses:', error)
+      toast.error('Unable to load bus configurations')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleFormChange = (busId, field, value) => {
+    setFormValues(prev => ({
+      ...prev,
+      [busId]: {
+        ...prev[busId],
+        [field]: value
+      }
+    }))
+  }
+
+  const updateBusConfig = async (busId) => {
+    const config = formValues[busId]
+    if (!config) return
+
+    try {
+      await axios.post(API.node.powerConfig, {
+        bus_id: busId,
+        ...config
+      })
+
+      const boards = busConfigs[busId]?.boards || []
+      const onlineBoards = boards.filter(isBoardOnline).length
+      toast.success(`Config applied. ${onlineBoards}/${boards.length} boards will sync within 30s.`)
+      loadBuses()
+    } catch (error) {
+      console.error('Error updating config:', error)
+      toast.error('Failed to update configuration')
+    }
+  }
+
+  const openDeleteConfirm = (busId) => {
+    const boardCount = busConfigs[busId]?.boards?.length || 0
+    setDeleteConfirmModal({ open: true, busId, boardCount })
+  }
+
+  const deleteBus = async () => {
+    const { busId } = deleteConfirmModal
+    if (!busId) return
+
+    try {
+      await axios.delete(`${API.node.powerConfig}/${busId}`)
+      toast.success(`Removed ${busId} configuration`)
+      setDeleteConfirmModal({ open: false, busId: null, boardCount: 0 })
+      loadBuses()
+    } catch (error) {
+      console.error('Error deleting bus:', error)
+      toast.error('Failed to delete bus configuration')
+    }
+  }
+
+  const openAddBusModal = () => {
+    setNewBusData({
+      bus_id: ''
+    })
+    setAddBusModalOpen(true)
+  }
+
+  const handleNewBusChange = (field, value) => {
+    setNewBusData(prev => ({ ...prev, [field]: value }))
+  }
+
+  const addNewBus = async () => {
+    if (!newBusData.bus_id.trim()) {
+      toast.error('Bus ID is required')
+      return
+    }
+
+    if (busConfigs[newBusData.bus_id]) {
+      toast.error('Bus ID already exists')
+      return
+    }
+
+    try {
+      await axios.post(API.node.powerConfig, {
+        bus_id: newBusData.bus_id.trim(),
+        bus_name: newBusData.bus_id.trim(), // Use Bus ID as name
+        deep_sleep_enabled: true,
+        trip_start: '00:00',
+        trip_end: '23:59',
+        maintenance_interval: 5,
+        maintenance_duration: 3
+      })
+
+      toast.success(`Added ${newBusData.bus_id}`)
+      setAddBusModalOpen(false)
+      loadBuses()
+    } catch (error) {
+      console.error('Error adding bus:', error)
+      toast.error('Failed to add bus configuration')
+    }
+  }
+
+  const isBoardOnline = (board) => {
+    if (!board?.last_seen) return false
+    const lastSeen = new Date(board.last_seen)
+    if (Number.isNaN(lastSeen.getTime())) return false
+    const secondsAgo = (Date.now() - lastSeen.getTime()) / 1000
+    return secondsAgo < 75
+  }
+
+  const renderBoard = (board) => {
+    const online = isBoardOnline(board)
+    const timeDiff = board?.last_seen ? formatRelative(board.last_seen) : 'Never'
+
+    return (
+      <div key={board.device_id} className="flex items-center justify-between rounded-xl border border-purple-500/20 bg-slate-900/50 p-3">
+        <div>
+          <p className="text-sm font-semibold text-slate-200">{board.device_id || 'Unknown device'}</p>
+          <p className="text-xs text-slate-500">
+            {board.location || 'Unknown'} · {board.ip_address || 'No IP'} · {timeDiff}
+          </p>
+        </div>
+        <span className={`rounded-full px-3 py-1 text-xs font-semibold ${
+          online ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-slate-700/50 text-slate-400 border border-slate-600'
+        }`}
+        >
+          {online ? '● Online' : '○ Offline'}
+        </span>
+      </div>
+    )
+  }
+
+  const formatRelative = (timestamp) => {
+    const lastSeen = new Date(timestamp)
+    if (Number.isNaN(lastSeen.getTime())) return 'Invalid timestamp'
+
+    const diffMs = Date.now() - lastSeen.getTime()
+    if (diffMs < 0) return 'Just now'
+
+    const diffSec = Math.floor(diffMs / 1000)
+    if (diffSec < 60) return `${diffSec}s ago`
+
+    const diffMin = Math.floor(diffSec / 60)
+    if (diffMin < 60) return `${diffMin}m ago`
+
+    const diffHour = Math.floor(diffMin / 60)
+    if (diffHour < 24) return `${diffHour}h ago`
+
+    const diffDay = Math.floor(diffHour / 24)
+    return `${diffDay}d ago`
+  }
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-20">
+        <LoadingSpinner size="xl" text="Loading fleet power configurations..." />
+      </div>
+    )
+  }
+
+  const busEntries = Object.entries(busConfigs)
+
+  return (
+    <div className="space-y-8">
+      <section className="backdrop-blur-xl bg-slate-900/50 border border-purple-500/20 rounded-2xl p-6 shadow-lg shadow-purple-500/10">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h1 className="text-3xl font-semibold text-slate-100 flex items-center gap-2">
+              <span>⚡</span>
+              ESP32 Fleet Power Management
+            </h1>
+            <p className="text-slate-400 mt-1">
+              Configure deep sleep windows and maintenance schedules for each bus. Boards sync automatically every 30 seconds.
+            </p>
+          </div>
+          <div className="rounded-xl border border-purple-500/20 bg-slate-800/50 px-4 py-2 text-sm text-slate-300">
+            <div>Auto-refresh every 5s</div>
+            <div>Last update: {lastUpdate ? lastUpdate.toLocaleTimeString() : '—'}</div>
+          </div>
+        </div>
+      </section>
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmModal.open && (
+        <div className="fixed inset-0 flex items-center justify-center p-4" style={{ zIndex: 9999 }}>
+          <div 
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setDeleteConfirmModal({ open: false, busId: null, boardCount: 0 })}
+          />
+          
+          <div className="relative w-full max-w-md bg-slate-900 border border-red-500/30 rounded-2xl shadow-2xl shadow-red-500/20" style={{ zIndex: 10000 }}>
+            <div className="bg-slate-900/95 backdrop-blur-sm border-b border-red-500/20 px-6 py-4">
+              <h3 className="text-xl font-bold text-slate-100 flex items-center gap-2">
+                <span className="text-2xl">⚠️</span>
+                Confirm Deletion
+              </h3>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className="rounded-xl bg-red-500/10 border border-red-500/30 p-4">
+                <p className="text-slate-200 font-semibold mb-2">
+                  Delete {deleteConfirmModal.busId}?
+                </p>
+                {deleteConfirmModal.boardCount > 0 && (
+                  <p className="text-sm text-slate-300">
+                    This bus has <span className="font-bold text-red-400">{deleteConfirmModal.boardCount}</span> connected board(s).
+                  </p>
+                )}
+              </div>
+
+              <div className="rounded-xl bg-slate-800/30 border border-purple-500/20 p-4">
+                <p className="text-sm text-slate-300">
+                  <span className="font-semibold text-slate-200">Note:</span> Power configuration will be removed, but passenger data will remain intact.
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-slate-900/95 backdrop-blur-sm border-t border-red-500/20 px-6 py-4 flex gap-3">
+              <button
+                onClick={() => setDeleteConfirmModal({ open: false, busId: null, boardCount: 0 })}
+                className="flex-1 px-4 py-3 bg-slate-800/50 border border-purple-500/30 text-slate-300 rounded-lg hover:bg-slate-700/50 transition-all font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={deleteBus}
+                className="flex-1 px-4 py-3 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg shadow-lg shadow-red-500/50 hover:shadow-xl transition-all font-semibold"
+              >
+                Delete Bus
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Bus Modal */}
+      {addBusModalOpen && (
+        <div className="fixed inset-0 flex items-start justify-center p-4 pt-20 overflow-y-auto" style={{ zIndex: 9999 }}>
+          <div 
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setAddBusModalOpen(false)}
+          />
+          
+          <div className="relative w-full max-w-md bg-slate-900 border border-purple-500/30 rounded-2xl shadow-2xl shadow-purple-500/20" style={{ zIndex: 10000 }}>
+            <div className="sticky top-0 bg-slate-900/95 backdrop-blur-sm border-b border-purple-500/20 px-6 py-4 flex items-center justify-between">
+              <h3 className="text-xl font-bold text-slate-100 flex items-center gap-2">
+                <span className="text-2xl">🚌</span>
+                Add New Bus
+              </h3>
+              <button
+                onClick={() => setAddBusModalOpen(false)}
+                className="p-2 hover:bg-slate-800 rounded-lg transition-colors"
+              >
+                <svg className="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="p-6 space-y-5">
+              <div className="space-y-2">
+                <label className="flex items-center gap-2 text-sm font-semibold text-slate-300">
+                  <span>🆔</span>
+                  Bus ID
+                  <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={newBusData.bus_id}
+                  onChange={(e) => handleNewBusChange('bus_id', e.target.value.toUpperCase())}
+                  placeholder="e.g., BUS_JC_003"
+                  autoFocus
+                  className="w-full px-4 py-3 bg-slate-800/50 border border-purple-500/30 text-slate-100 rounded-lg focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 transition-all placeholder:text-slate-500"
+                />
+                <p className="text-xs text-slate-400">Enter unique identifier for the bus</p>
+              </div>
+
+              <div className="rounded-xl bg-slate-800/30 border border-purple-500/20 p-4">
+                <p className="text-xs font-semibold text-slate-400 mb-3">Default Configuration:</p>
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500">Bus Name:</span>
+                    <span className="font-medium text-slate-300">{newBusData.bus_id || 'Same as Bus ID'}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500">Deep Sleep:</span>
+                    <span className="font-medium text-emerald-300">✓ Enabled</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500">Maintenance Interval:</span>
+                    <span className="font-medium text-slate-300">5 minutes</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500">Maintenance Duration:</span>
+                    <span className="font-medium text-slate-300">3 minutes</span>
+                  </div>
+                </div>
+                <p className="text-xs text-slate-500 mt-3">You can modify these settings after creating the bus</p>
+              </div>
+            </div>
+
+            <div className="sticky bottom-0 bg-slate-900/95 backdrop-blur-sm border-t border-purple-500/20 px-6 py-4 flex gap-3">
+              <button
+                onClick={() => setAddBusModalOpen(false)}
+                className="flex-1 px-4 py-3 bg-slate-800/50 border border-purple-500/30 text-slate-300 rounded-lg hover:bg-slate-700/50 transition-all font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={addNewBus}
+                className="flex-1 px-4 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg shadow-lg shadow-purple-500/50 hover:shadow-xl transition-all font-semibold"
+              >
+                Add Bus
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {busEntries.length === 0 ? (
+        <section className="rounded-2xl border border-dashed border-purple-500/30 bg-slate-800/30 p-10 text-center">
+          <div className="text-6xl mb-4">🚌</div>
+          <p className="text-lg font-medium text-slate-200">
+            No buses configured yet
+          </p>
+          <p className="text-sm text-slate-400 mt-2">
+            Add your first bus to start managing power settings
+          </p>
+          <button
+            onClick={openAddBusModal}
+            className="mt-6 inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-purple-500/50 hover:shadow-xl transition-all"
+          >
+            <span className="text-lg">➕</span>
+            Add New Bus
+          </button>
+        </section>
+      ) : (
+        <section className="space-y-6">
+          <div className="flex justify-end">
+            <button
+              onClick={openAddBusModal}
+              className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-purple-500/50 hover:shadow-xl transition-all"
+            >
+              <span className="text-lg">➕</span>
+              Add New Bus
+            </button>
+          </div>
+
+          <div className="grid gap-6 lg:grid-cols-2">
+            {busEntries.map(([busId, config]) => {
+              const form = formValues[busId] || {}
+              const boards = config.boards || []
+
+              return (
+                <article
+                  key={busId}
+                  className="rounded-2xl border border-purple-500/20 bg-slate-800/30 backdrop-blur-sm p-6 shadow-lg shadow-purple-500/10 hover:shadow-xl hover:shadow-purple-500/20 transition-all"
+                >
+                  <header className="flex items-start justify-between gap-4">
+                    <div>
+                      <h2 className="text-xl font-semibold text-slate-100">{form.bus_name}</h2>
+                      <p className="text-xs uppercase tracking-wide text-slate-500">{busId}</p>
+                    </div>
+                    <button
+                      onClick={() => openDeleteConfirm(busId)}
+                      className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-sm font-medium text-red-400 hover:bg-red-500/20 transition-all"
+                      title="Delete bus configuration"
+                    >
+                      🗑
+                    </button>
+                  </header>
+
+                  <div className="mt-6 grid gap-4 sm:grid-cols-2">
+                    <label className="flex flex-col gap-2 text-sm font-medium text-slate-300">
+                      Bus name
+                      <input
+                        type="text"
+                        value={form.bus_name || ''}
+                        onChange={(event) => handleFormChange(busId, 'bus_name', event.target.value)}
+                        className="rounded-lg border border-purple-500/30 bg-slate-800/50 px-4 py-2 text-slate-100 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 transition-all"
+                      />
+                    </label>
+                    <label className="flex flex-col gap-2 text-sm font-medium text-slate-300">
+                      Deep sleep enabled
+                      <button
+                        type="button"
+                        onClick={() => handleFormChange(busId, 'deep_sleep_enabled', !form.deep_sleep_enabled)}
+                        className={`rounded-lg border px-4 py-2 text-sm font-semibold transition-all ${
+                          form.deep_sleep_enabled
+                            ? 'border-emerald-500/50 bg-emerald-500/20 text-emerald-300'
+                            : 'border-slate-700 bg-slate-800/50 text-slate-400'
+                        }`}
+                      >
+                        {form.deep_sleep_enabled ? '✓ Enabled' : '✗ Disabled'}
+                      </button>
+                    </label>
+                    <label className="flex flex-col gap-2 text-sm font-medium text-slate-300">
+                      Maintenance interval (min)
+                      <input
+                        type="number"
+                        min="1"
+                        max="60"
+                        value={form.maintenance_interval ?? ''}
+                        onChange={(event) => handleFormChange(busId, 'maintenance_interval', Number(event.target.value))}
+                        className="rounded-lg border border-purple-500/30 bg-slate-800/50 px-4 py-2 text-slate-100 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 transition-all"
+                      />
+                    </label>
+                    <label className="flex flex-col gap-2 text-sm font-medium text-slate-300">
+                      Maintenance duration (min)
+                      <input
+                        type="number"
+                        min="1"
+                        max="30"
+                        value={form.maintenance_duration ?? ''}
+                        onChange={(event) => handleFormChange(busId, 'maintenance_duration', Number(event.target.value))}
+                        className="rounded-lg border border-purple-500/30 bg-slate-800/50 px-4 py-2 text-slate-100 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 transition-all"
+                      />
+                    </label>
+                  </div>
+
+                  <button
+                    onClick={() => updateBusConfig(busId)}
+                    className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-500/30 transition-all hover:shadow-xl hover:shadow-emerald-500/40"
+                  >
+                    💾 Apply settings to {busId}
+                  </button>
+
+                  <div className="mt-6 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-semibold text-slate-300">Connected boards</h3>
+                      <span className="rounded-full bg-purple-500/20 border border-purple-500/30 px-3 py-1 text-xs font-semibold text-purple-300">
+                        {boards.length}
+                      </span>
+                    </div>
+                    {boards.length === 0 ? (
+                      <p className="rounded-xl border border-dashed border-purple-500/30 bg-slate-900/50 p-3 text-sm text-slate-400">
+                        No boards have connected yet.
+                      </p>
+                    ) : (
+                      <div className="space-y-2">
+                        {boards.map(renderBoard)}
+                      </div>
+                    )}
+                  </div>
+
+                  <p className="mt-6 text-xs text-slate-500">
+                    Last updated: {config.last_updated ? new Date(config.last_updated).toLocaleString() : 'Never'}
+                  </p>
+                </article>
+              )
+            })}
+          </div>
+        </section>
+      )}
+    </div>
+  )
+}
+
+export default PowerPage

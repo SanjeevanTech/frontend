@@ -9,18 +9,21 @@ export const NODE_API_URL = import.meta.env.VITE_API_URL || 'http://localhost:50
 
 // Full API paths
 export const API = {
-  // Python Server endpoints
+  // Python Server endpoints (ESP32 only + face recognition)
   python: {
-    buses: `${PYTHON_API_URL}/api/buses`,
-    powerConfig: `${PYTHON_API_URL}/api/power-config`,
     extractFace: `${PYTHON_API_URL}/api/extract-face-embedding`,
   },
   
   // Node.js Backend endpoints (use relative paths for Vite proxy)
   node: {
+    // Bus Routes
     busRoutes: '/api/bus-routes',
     busSchedule: (busId) => `/api/bus-schedule/${busId}`,
     saveBusSchedule: '/api/bus-schedule',
+    
+    // Power Management (moved from Python)
+    buses: '/api/power-config',              // GET all buses
+    powerConfig: '/api/power-config',        // POST/DELETE power config
     syncPowerConfig: '/api/sync-power-config',
   }
 };

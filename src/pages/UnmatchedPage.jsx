@@ -1,0 +1,442 @@
+import { useState, useEffect } from 'react'
+import axios from '../utils/axios'
+import { format, parseISO } from 'date-fns'
+import { toast } from 'react-hot-toast'
+import BusSelector from '../components/BusSelector'
+import DateFilter from '../components/DateFilter'
+import Pagination from '../components/Pagination'
+import LoadingSpinner from '../components/LoadingSpinner'
+
+function UnmatchedPage() {
+  const [selectedDate, setSelectedDate] = useState(new Date())
+  const [selectedBus, setSelectedBus] = useState(localStorage.getItem('selectedBusPassengers') || 'ALL')
+  const [selectedTrip, setSelectedTrip] = useState('ALL')
+  const [availableTrips, setAvailableTrips] = useState([])
+  const [unmatched, setUnmatched] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [filterType, setFilterType] = useState('ALL')
+  const [currentPage, setCurrentPage] = useState(0)
+  const [totalUnmatched, setTotalUnmatched] = useState(0)
+  const [filterModalOpen, setFilterModalOpen] = useState(false)
+  const [tempFilters, setTempFilters] = useState({
+    bus: 'ALL',
+    date: new Date(),
+    trip: 'ALL'
+  })
+  const itemsPerPage = 50
+
+  const handleBusChange = (busId) => {
+    setSelectedBus(busId)
+    localStorage.setItem('selectedBusPassengers', busId)
+  }
+
+  useEffect(() => {
+    fetchUnmatched()
+  }, [selectedDate, filterType, selectedBus, selectedTrip, currentPage])
+
+  useEffect(() => {
+    setCurrentPage(0)
+  }, [selectedDate, filterType, selectedBus, selectedTrip])
+
+  const fetchUnmatched = async () => {
+    try {
+      setLoading(true)
+      const dateStr = format(selectedDate, 'yyyy-MM-dd')
+      const params = new URLSearchParams({
+        date: dateStr,
+        limit: itemsPerPage,
+        skip: currentPage * itemsPerPage
+      })
+
+      if (filterType !== 'ALL') params.append('type', filterType)
+      if (selectedBus !== 'ALL') params.append('bus_id', selectedBus)
+      if (selectedTrip !== 'ALL') params.append('trip_id', selectedTrip)
+
+      const response = await axios.get(`/api/unmatched?${params}`)
+      setUnmatched(response.data.unmatched || [])
+      setTotalUnmatched(response.data.total || 0)
+    } catch (error) {
+      toast.error('Failed to fetch unmatched passengers')
+      console.error('Error fetching unmatched:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handlePageChange = (newPage) => {
+    setCurrentPage(newPage)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const formatDateTime = (dateString) => {
+    try {
+      return format(parseISO(dateString), 'HH:mm:ss')
+    } catch {
+      return 'N/A'
+    }
+  }
+
+  const formatLocation = (location) => {
+    if (!location) return 'N/A'
+    return `${location.latitude?.toFixed(6)}, ${location.longitude?.toFixed(6)}`
+  }
+
+  const openFilterModal = () => {
+    setTempFilters({
+      bus: selectedBus,
+      date: selectedDate,
+      trip: selectedTrip
+    })
+    setFilterModalOpen(true)
+  }
+
+  const applyFilters = () => {
+    setSelectedBus(tempFilters.bus)
+    setSelectedDate(tempFilters.date)
+    setSelectedTrip(tempFilters.trip)
+    localStorage.setItem('selectedBusPassengers', tempFilters.bus)
+    setCurrentPage(0)
+    setFilterModalOpen(false)
+  }
+
+  const resetFilters = () => {
+    const now = new Date()
+    setTempFilters({
+      bus: 'ALL',
+      date: now,
+      trip: 'ALL'
+    })
+  }
+
+  const filters = [
+    { id: 'ALL', label: `All (${totalUnmatched})` },
+    { id: 'ENTRY', label: 'Entries only' },
+    { id: 'EXIT', label: 'Exits only' }
+  ]
+
+  return (
+    <div className="space-y-6">
+      {/* Mobile Filter Button */}
+      <div className="flex items-center justify-between gap-4 lg:hidden">
+        <button
+          onClick={openFilterModal}
+          className="flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg shadow-lg shadow-purple-500/50 hover:shadow-xl transition-all font-medium"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+          </svg>
+          <span>Filters</span>
+          {(selectedBus !== 'ALL' || selectedTrip !== 'ALL') && (
+            <span className="bg-white/20 rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold">
+              {(selectedBus !== 'ALL' ? 1 : 0) + (selectedTrip !== 'ALL' ? 1 : 0)}
+            </span>
+          )}
+        </button>
+
+        <button
+          onClick={fetchUnmatched}
+          className="flex items-center gap-2 px-4 py-3 bg-slate-800/50 border border-purple-500/30 text-slate-200 rounded-lg hover:bg-slate-700/50 transition-all"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          <span className="hidden sm:inline">Refresh</span>
+        </button>
+      </div>
+
+      {/* Desktop Inline Filters */}
+      <div className="hidden lg:block rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-lg shadow-black/30">
+        <div className="grid grid-cols-4 gap-4 items-end">
+          {/* Bus Filter */}
+          <div className="space-y-2">
+            <label className="text-sm font-semibold text-slate-300 block">
+              Select Bus
+            </label>
+            <BusSelector 
+              selectedBus={selectedBus}
+              onBusChange={handleBusChange}
+              showAll={true}
+              label=""
+            />
+          </div>
+
+          {/* Date Filter */}
+          <div className="space-y-2">
+            <label className="text-sm font-semibold text-slate-300 block">
+              Select Date
+            </label>
+            <input
+              type="date"
+              value={format(selectedDate, 'yyyy-MM-dd')}
+              onChange={(e) => setSelectedDate(new Date(e.target.value))}
+              max={format(new Date(), 'yyyy-MM-dd')}
+              className="w-full px-4 py-3 bg-slate-800/50 border border-purple-500/30 text-slate-100 rounded-lg focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 transition-all [color-scheme:dark]"
+              style={{ colorScheme: 'dark' }}
+            />
+          </div>
+
+          {/* Trip Filter */}
+          <div className="space-y-2">
+            <label className="text-sm font-semibold text-slate-300 block">
+              Select Trip
+            </label>
+            <select
+              value={selectedTrip}
+              onChange={(e) => setSelectedTrip(e.target.value)}
+              className="w-full px-4 py-3 bg-slate-800/50 border border-purple-500/30 text-slate-100 rounded-lg focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 transition-all cursor-pointer"
+            >
+              <option value="ALL" className="bg-slate-900 text-slate-100">
+                All trips {availableTrips && availableTrips.length > 0 ? `(${availableTrips.length})` : ''}
+              </option>
+              {availableTrips && availableTrips.map((trip, index) => {
+                const tripId = typeof trip === 'string' ? trip : trip.trip_id
+                const boardingTime = typeof trip === 'object' && trip.start_time
+                  ? format(new Date(trip.start_time), 'HH:mm')
+                  : ''
+                const displayName = boardingTime ? `${tripId} (${boardingTime})` : tripId
+                return (
+                  <option key={`${tripId}_${index}`} value={tripId} className="bg-slate-900 text-slate-100">
+                    {displayName}
+                  </option>
+                )
+              })}
+            </select>
+          </div>
+
+          {/* Refresh Button */}
+          <div className="space-y-2">
+            <label className="text-sm font-semibold text-slate-300 block opacity-0">
+              Action
+            </label>
+            <button
+              onClick={fetchUnmatched}
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-slate-800/50 border border-purple-500/30 text-slate-200 rounded-lg hover:bg-slate-700/50 transition-all"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              <span>Refresh</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Filter Modal */}
+      {filterModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div 
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setFilterModalOpen(false)}
+          />
+          
+          <div className="relative w-full sm:max-w-lg bg-slate-900 border border-purple-500/30 rounded-t-3xl sm:rounded-2xl shadow-2xl shadow-purple-500/20 max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-slate-900/95 backdrop-blur-sm border-b border-purple-500/20 px-6 py-4 flex items-center justify-between">
+              <h3 className="text-xl font-bold text-slate-100 flex items-center gap-2">
+                <svg className="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                </svg>
+                Filter Options
+              </h3>
+              <button
+                onClick={() => setFilterModalOpen(false)}
+                className="p-2 hover:bg-slate-800 rounded-lg transition-colors"
+              >
+                <svg className="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6">
+              <div className="space-y-2">
+                <label className="flex items-center gap-2 text-sm font-semibold text-slate-300">
+                  <span className="text-lg">🚌</span>
+                  Select Bus
+                </label>
+                <BusSelector 
+                  selectedBus={tempFilters.bus}
+                  onBusChange={(bus) => setTempFilters(prev => ({ ...prev, bus }))}
+                  showAll={true}
+                  label=""
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="flex items-center gap-2 text-sm font-semibold text-slate-300">
+                  <span className="text-lg">📅</span>
+                  Select Date
+                </label>
+                <input
+                  type="date"
+                  value={format(tempFilters.date, 'yyyy-MM-dd')}
+                  onChange={(e) => setTempFilters(prev => ({ ...prev, date: new Date(e.target.value) }))}
+                  max={format(new Date(), 'yyyy-MM-dd')}
+                  className="w-full px-4 py-3 bg-slate-800/50 border border-purple-500/30 text-slate-100 rounded-lg focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 transition-all [color-scheme:dark]"
+                  style={{ colorScheme: 'dark' }}
+                />
+              </div>
+
+              {availableTrips && availableTrips.length > 0 && (
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 text-sm font-semibold text-slate-300">
+                    <span className="text-lg">🎯</span>
+                    Select Trip
+                  </label>
+                  <select
+                    value={tempFilters.trip}
+                    onChange={(e) => setTempFilters(prev => ({ ...prev, trip: e.target.value }))}
+                    className="w-full px-4 py-3 bg-slate-800/50 border border-purple-500/30 text-slate-100 rounded-lg focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 transition-all cursor-pointer"
+                  >
+                    <option value="ALL" className="bg-slate-900 text-slate-100">All trips ({availableTrips.length})</option>
+                    {availableTrips.map((trip, index) => {
+                      const tripId = typeof trip === 'string' ? trip : trip.trip_id
+                      return (
+                        <option key={`${tripId}_${index}`} value={tripId} className="bg-slate-900 text-slate-100">
+                          {tripId}
+                        </option>
+                      )
+                    })}
+                  </select>
+                </div>
+              )}
+
+              <div className="rounded-xl bg-slate-800/30 border border-purple-500/20 p-4">
+                <p className="text-xs text-slate-400 mb-2">Current Selection:</p>
+                <div className="space-y-1 text-sm">
+                  <p className="text-slate-300">
+                    <span className="text-slate-500">Bus:</span> <span className="font-medium text-purple-400">{tempFilters.bus}</span>
+                  </p>
+                  <p className="text-slate-300">
+                    <span className="text-slate-500">Date:</span> <span className="font-medium text-purple-400">{format(tempFilters.date, 'MMM dd, yyyy')}</span>
+                  </p>
+                  {tempFilters.trip !== 'ALL' && (
+                    <p className="text-slate-300">
+                      <span className="text-slate-500">Trip:</span> <span className="font-medium text-purple-400">{tempFilters.trip}</span>
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="sticky bottom-0 bg-slate-900/95 backdrop-blur-sm border-t border-purple-500/20 px-6 py-4 flex gap-3">
+              <button
+                onClick={resetFilters}
+                className="flex-1 px-4 py-3 bg-slate-800/50 border border-purple-500/30 text-slate-300 rounded-lg hover:bg-slate-700/50 transition-all font-medium"
+              >
+                Reset
+              </button>
+              <button
+                onClick={applyFilters}
+                className="flex-1 px-4 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg shadow-lg shadow-purple-500/50 hover:shadow-xl transition-all font-semibold"
+              >
+                Apply Filters
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {loading ? (
+        <div className="flex justify-center py-20">
+          <LoadingSpinner size="xl" text="Loading unmatched passengers..." />
+        </div>
+      ) : (
+        <div className="space-y-6">
+          <header className="text-center">
+            <h3 className="text-2xl font-semibold text-slate-100">Unmatched passengers</h3>
+            <p className="mt-2 text-sm text-slate-400">Entries without exits or exits without matching entries</p>
+          </header>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Filter by type</span>
+            {filters.map((filter) => (
+              <button
+                key={filter.id}
+                onClick={() => setFilterType(filter.id)}
+                className={`rounded-lg px-4 py-2 text-sm font-medium transition-all ${
+                  filterType === filter.id
+                    ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/30'
+                    : 'border border-slate-700 bg-slate-900/80 text-slate-200 hover:bg-slate-800'
+                }`}
+              >
+                {filter.label}
+              </button>
+            ))}
+          </div>
+
+          {unmatched.length === 0 ? (
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-16 text-center">
+              <div className="text-5xl mb-3">✅</div>
+              <p className="text-lg font-semibold text-slate-100">No unmatched passengers for this selection</p>
+              <p className="mt-2 text-sm text-slate-400">All entries have matching exits</p>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              <div className="overflow-x-auto rounded-2xl border border-slate-800">
+                <table className="min-w-full divide-y divide-slate-800 text-sm">
+                  <thead className="bg-slate-950/80 text-left text-xs uppercase tracking-wide text-slate-400">
+                    <tr>
+                      <th className="px-4 py-3">Bus ID</th>
+                      <th className="px-4 py-3">Type</th>
+                      <th className="px-4 py-3">Face ID</th>
+                      <th className="px-4 py-3">Time</th>
+                      <th className="px-4 py-3">Location</th>
+                      <th className="px-4 py-3">Device</th>
+                      <th className="px-4 py-3">Best match</th>
+                      <th className="px-4 py-3">Reason</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800 bg-slate-900/70 text-slate-200">
+                    {unmatched.map((item, index) => (
+                      <tr key={index} className="transition-colors hover:bg-slate-900/90">
+                        <td className="px-4 py-3 font-semibold text-indigo-300">{item.bus_id || 'N/A'}</td>
+                        <td className="px-4 py-3">
+                          <span
+                            className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                              item.type === 'ENTRY'
+                                ? 'bg-sky-500/20 text-sky-200'
+                                : 'bg-rose-500/20 text-rose-200'
+                            }`}
+                          >
+                            {item.type}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 font-mono text-xs text-slate-400">{item.face_id}</td>
+                        <td className="px-4 py-3 text-slate-200">{formatDateTime(item.timestamp)}</td>
+                        <td className="px-4 py-3 text-xs text-slate-400">{formatLocation(item.location)}</td>
+                        <td className="px-4 py-3 text-slate-300">{item.location?.device_id || 'N/A'}</td>
+                        <td className="px-4 py-3 text-slate-200">
+                          {item.best_similarity_found !== undefined && item.best_similarity_found !== null
+                            ? `${(item.best_similarity_found * 100).toFixed(1)}%`
+                            : 'N/A'}
+                        </td>
+                        <td className="px-4 py-3 text-xs text-slate-400">{item.reason}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <Pagination
+                currentPage={currentPage}
+                totalItems={totalUnmatched}
+                itemsPerPage={itemsPerPage}
+                onPageChange={handlePageChange}
+                loading={loading}
+              />
+            </div>
+          )}
+
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 text-sm text-slate-300">
+            <p className="text-slate-100">Total unmatched: {totalUnmatched}</p>
+            <p className="mt-2 text-slate-400">
+              These passengers either boarded without exiting or exited without boarding records. Review logs to reconcile.
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+export default UnmatchedPage
