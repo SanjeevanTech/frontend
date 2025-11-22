@@ -117,13 +117,23 @@ function SchedulePage() {
 
   const handleEditTrip = (index) => {
     const trip = schedule.trips[index]
+    
+    // Try to find route_id if missing - match by route name
+    let routeId = trip.route_id || ''
+    if (!routeId && trip.route) {
+      const matchedRoute = routes.find(r => r.route_name === trip.route)
+      if (matchedRoute) {
+        routeId = matchedRoute.route_id
+      }
+    }
+    
     setEditingIndex(index)
     setNewTrip({
       direction: trip.direction || '',
       boarding_start_time: trip.boarding_start_time || '',
       departure_time: trip.departure_time || '',
       estimated_arrival_time: trip.estimated_arrival_time || '',
-      route_id: trip.route_id || '',
+      route_id: routeId,
       route: trip.route || '',
       active: trip.active !== false
     })
@@ -163,36 +173,76 @@ function SchedulePage() {
   }
 
   const handleRemoveTrip = async (index) => {
-    if (!window.confirm('Remove this trip? This will save immediately.')) return
+    const tripName = schedule.trips[index]?.trip_name || `Trip ${index + 1}`
+    
+    toast((t) => (
+      <div className="flex flex-col gap-2">
+        <p className="font-medium">Remove {tripName}?</p>
+        <p className="text-sm text-gray-600">This will save immediately.</p>
+        <div className="flex gap-2 mt-2">
+          <button
+            onClick={async () => {
+              toast.dismiss(t.id)
+              
+              const updatedSchedule = {
+                ...schedule,
+                trips: schedule.trips.filter((_, i) => i !== index)
+              }
 
-    const updatedSchedule = {
-      ...schedule,
-      trips: schedule.trips.filter((_, i) => i !== index)
-    }
-
-    try {
-      setSaving(true)
-      await axios.post(API.node.saveBusSchedule, updatedSchedule)
-      await axios.post(API.node.syncPowerConfig, { bus_id: updatedSchedule.bus_id })
-      setSchedule(updatedSchedule)
-      
-      if (editingIndex === index) {
-        handleCancelEdit()
-      }
-      toast.success('Trip removed and saved!')
-    } catch (error) {
-      console.error('Error removing trip:', error)
-      toast.error('Failed to remove trip: ' + (error.response?.data?.error || error.message))
-    } finally {
-      setSaving(false)
-    }
+              try {
+                setSaving(true)
+                
+                // Use PUT for update since schedule already exists
+                if (updatedSchedule._id) {
+                  await axios.put(`${API.node.saveBusSchedule}/${updatedSchedule.bus_id}`, updatedSchedule)
+                } else {
+                  await axios.post(API.node.saveBusSchedule, updatedSchedule)
+                }
+                
+                await axios.put(API.node.syncPowerConfig, { bus_id: updatedSchedule.bus_id })
+                setSchedule(updatedSchedule)
+                
+                if (editingIndex === index) {
+                  handleCancelEdit()
+                }
+                toast.success('Trip removed and saved!')
+              } catch (error) {
+                console.error('Error removing trip:', error)
+                toast.error('Failed to remove trip: ' + (error.response?.data?.error || error.message))
+              } finally {
+                setSaving(false)
+              }
+            }}
+            className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 text-sm"
+          >
+            Remove
+          </button>
+          <button
+            onClick={() => toast.dismiss(t.id)}
+            className="px-3 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    ), {
+      duration: 10000,
+      position: 'top-center'
+    })
   }
 
   const handleSaveSchedule = async () => {
     try {
       setSaving(true)
-      await axios.post(API.node.saveBusSchedule, schedule)
-      const syncResult = await axios.post(API.node.syncPowerConfig, { bus_id: schedule.bus_id })
+      
+      // Use PUT if schedule exists (has _id), POST if creating new
+      if (schedule._id) {
+        await axios.put(`${API.node.saveBusSchedule}/${schedule.bus_id}`, schedule)
+      } else {
+        await axios.post(API.node.saveBusSchedule, schedule)
+      }
+      
+      const syncResult = await axios.put(API.node.syncPowerConfig, { bus_id: schedule.bus_id })
       
       toast.success(`Schedule saved and synced!\n\nESP32 will wake at ${syncResult.data.trip_start} and sleep at ${syncResult.data.trip_end}`)
       fetchSchedule(selectedBus)
@@ -337,7 +387,17 @@ function SchedulePage() {
               onChange={(e) => handleRouteChange(e.target.value)}
               className="w-full px-4 py-3 bg-slate-800/50 border border-purple-500/30 text-slate-100 rounded-lg focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 transition-all cursor-pointer"
             >
-              <option value="" className="bg-slate-900 text-slate-100">Select Route</option>
+              <option value="" className="bg-slate-900 text-slate-100">
+                {editingIndex !== null && !newTrip.route_id && newTrip.route 
+                  ? `${newTrip.route} (Please reselect)` 
+                  : 'Select Route'}
+              </option>
+              {/* Show current route if editing and it's not in the active list */}
+              {editingIndex !== null && newTrip.route_id && !routes.find(r => r.route_id === newTrip.route_id && r.is_active !== false) && (
+                <option value={newTrip.route_id} className="bg-slate-900 text-orange-400">
+                  {newTrip.route} (Current - Inactive/Deleted)
+                </option>
+              )}
               {routes.filter(r => r.is_active !== false).map(route => {
                 const stops = route.stops || []
                 const origin = stops.length > 0 ? stops[0].stop_name : 'Start'
@@ -351,6 +411,12 @@ function SchedulePage() {
             </select>
             {routes.length === 0 && (
               <p className="text-xs text-red-400 mt-1">⚠️ No routes available. Create routes first in Routes tab.</p>
+            )}
+            {editingIndex !== null && !newTrip.route_id && newTrip.route && (
+              <p className="text-xs text-orange-400 mt-1">⚠️ This trip has route "{newTrip.route}" but no route_id. Please reselect the route to fix.</p>
+            )}
+            {editingIndex !== null && newTrip.route_id && !routes.find(r => r.route_id === newTrip.route_id) && (
+              <p className="text-xs text-orange-400 mt-1">⚠️ Current route is inactive or deleted. Please select a new route.</p>
             )}
           </div>
 

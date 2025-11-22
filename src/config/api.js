@@ -24,7 +24,7 @@ export const API = {
     // Power Management (moved from Python)
     buses: '/api/power-config',              // GET all buses
     powerConfig: '/api/power-config',        // POST/DELETE power config
-    syncPowerConfig: '/api/sync-power-config',
+    syncPowerConfig: '/api/power-config/sync',
   }
 };
 

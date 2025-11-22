@@ -349,7 +349,7 @@ function SeasonTicketsPage() {
         toast.success('Member reactivated successfully');
       } else if (type === 'delete') {
         console.log('Deleting member permanently:', memberId);
-        const response = await axios.delete(`${API_BASE}/season-ticket/members/${memberId}?permanent=true`);
+        const response = await axios.delete(`${API_BASE}/season-ticket/members/${memberId}`);
         console.log('Delete response:', response);
         toast.success('Member deleted permanently');
       }
