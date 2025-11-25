@@ -4,6 +4,7 @@ import BusSelector from '../components/BusSelector'
 import LoadingSpinner from '../components/LoadingSpinner'
 import { API } from '../config/api'
 import { toast } from 'react-hot-toast'
+import DeleteConfirmModal from '../components/DeleteConfirmModal'
 
 function SchedulePage() {
   const [selectedBus, setSelectedBus] = useState(localStorage.getItem('selectedBus') || 'BUS_JC_001')
@@ -12,6 +13,7 @@ function SchedulePage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [editingIndex, setEditingIndex] = useState(null)
+  const [deleteConfirmModal, setDeleteConfirmModal] = useState({ open: false, tripIndex: null, tripName: '' })
   const [newTrip, setNewTrip] = useState({
     direction: '',
     boarding_start_time: '',
@@ -172,63 +174,45 @@ function SchedulePage() {
     }
   }
 
-  const handleRemoveTrip = async (index) => {
+  const openRemoveConfirm = (index) => {
     const tripName = schedule.trips[index]?.trip_name || `Trip ${index + 1}`
-    
-    toast((t) => (
-      <div className="flex flex-col gap-2">
-        <p className="font-medium">Remove {tripName}?</p>
-        <p className="text-sm text-gray-600">This will save immediately.</p>
-        <div className="flex gap-2 mt-2">
-          <button
-            onClick={async () => {
-              toast.dismiss(t.id)
-              
-              const updatedSchedule = {
-                ...schedule,
-                trips: schedule.trips.filter((_, i) => i !== index)
-              }
+    setDeleteConfirmModal({ open: true, tripIndex: index, tripName })
+  }
 
-              try {
-                setSaving(true)
-                
-                // Use PUT for update since schedule already exists
-                if (updatedSchedule._id) {
-                  await axios.put(`${API.node.saveBusSchedule}/${updatedSchedule.bus_id}`, updatedSchedule)
-                } else {
-                  await axios.post(API.node.saveBusSchedule, updatedSchedule)
-                }
-                
-                await axios.put(API.node.syncPowerConfig, { bus_id: updatedSchedule.bus_id })
-                setSchedule(updatedSchedule)
-                
-                if (editingIndex === index) {
-                  handleCancelEdit()
-                }
-                toast.success('Trip removed and saved!')
-              } catch (error) {
-                console.error('Error removing trip:', error)
-                toast.error('Failed to remove trip: ' + (error.response?.data?.error || error.message))
-              } finally {
-                setSaving(false)
-              }
-            }}
-            className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 text-sm"
-          >
-            Remove
-          </button>
-          <button
-            onClick={() => toast.dismiss(t.id)}
-            className="px-3 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm"
-          >
-            Cancel
-          </button>
-        </div>
-      </div>
-    ), {
-      duration: 10000,
-      position: 'top-center'
-    })
+  const handleRemoveTrip = async () => {
+    const { tripIndex } = deleteConfirmModal
+    if (tripIndex === null) return
+
+    const updatedSchedule = {
+      ...schedule,
+      trips: schedule.trips.filter((_, i) => i !== tripIndex)
+    }
+
+    try {
+      setSaving(true)
+      
+      // Use PUT for update since schedule already exists
+      if (updatedSchedule._id) {
+        await axios.put(`${API.node.saveBusSchedule}/${updatedSchedule.bus_id}`, updatedSchedule)
+      } else {
+        await axios.post(API.node.saveBusSchedule, updatedSchedule)
+      }
+      
+      await axios.put(API.node.syncPowerConfig, { bus_id: updatedSchedule.bus_id })
+      setSchedule(updatedSchedule)
+      
+      if (editingIndex === tripIndex) {
+        handleCancelEdit()
+      }
+      
+      toast.success('Trip removed and saved!')
+      setDeleteConfirmModal({ open: false, tripIndex: null, tripName: '' })
+    } catch (error) {
+      console.error('Error removing trip:', error)
+      toast.error('Failed to remove trip: ' + (error.response?.data?.error || error.message))
+    } finally {
+      setSaving(false)
+    }
   }
 
   const handleSaveSchedule = async () => {
@@ -236,16 +220,21 @@ function SchedulePage() {
       setSaving(true)
       
       // Use PUT if schedule exists (has _id), POST if creating new
+      let response
       if (schedule._id) {
-        await axios.put(`${API.node.saveBusSchedule}/${schedule.bus_id}`, schedule)
+        response = await axios.put(`${API.node.saveBusSchedule}/${schedule.bus_id}`, schedule)
       } else {
-        await axios.post(API.node.saveBusSchedule, schedule)
+        response = await axios.post(API.node.saveBusSchedule, schedule)
       }
       
       const syncResult = await axios.put(API.node.syncPowerConfig, { bus_id: schedule.bus_id })
       
       toast.success(`Schedule saved and synced!\n\nESP32 will wake at ${syncResult.data.trip_start} and sleep at ${syncResult.data.trip_end}`)
-      fetchSchedule(selectedBus)
+      
+      // Update local state instead of refetching
+      if (response.data.schedule) {
+        setSchedule(response.data.schedule)
+      }
     } catch (error) {
       console.error('Error saving schedule:', error)
       toast.error('Failed to save schedule: ' + error.message)
@@ -264,6 +253,18 @@ function SchedulePage() {
 
   return (
     <div className="space-y-6">
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmModal
+        isOpen={deleteConfirmModal.open}
+        onClose={() => setDeleteConfirmModal({ open: false, tripIndex: null, tripName: '' })}
+        onConfirm={handleRemoveTrip}
+        title="Confirm Removal"
+        itemName={`Remove ${deleteConfirmModal.tripName}?`}
+        warningMessage="This will save immediately and remove the trip from the schedule."
+        confirmButtonText="Remove Trip"
+        isDeleting={saving}
+      />
+
       <header className="text-center">
         <h2 className="text-3xl font-bold text-slate-100 flex items-center justify-center gap-2">
           <span>📅</span>
@@ -320,7 +321,7 @@ function SchedulePage() {
                     </button>
                     <button 
                       className="px-3 py-1.5 bg-red-500/20 text-red-300 border border-red-500/30 rounded-lg text-sm font-medium hover:bg-red-500/30 transition-all"
-                      onClick={() => handleRemoveTrip(index)}
+                      onClick={() => openRemoveConfirm(index)}
                     >
                       🗑️ Remove
                     </button>

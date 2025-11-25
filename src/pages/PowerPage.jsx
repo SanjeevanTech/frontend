@@ -14,10 +14,28 @@ function PowerPage() {
   const [newBusData, setNewBusData] = useState({
     bus_id: ''
   })
+  const [savingBusId, setSavingBusId] = useState(null)
+  const [deletingBusId, setDeletingBusId] = useState(null)
+  const [addingBus, setAddingBus] = useState(false)
+  
+  // Helper function to check if form has unsaved changes
+  const hasUnsavedChanges = (busId) => {
+    const form = formValues[busId]
+    const config = busConfigs[busId]
+    if (!form || !config) return false
+    
+    return (
+      form.bus_name !== (config.bus_name || busId) ||
+      form.deep_sleep_enabled !== (config.deep_sleep_enabled !== false) ||
+      form.maintenance_interval !== (config.maintenance_interval ?? 5) ||
+      form.maintenance_duration !== (config.maintenance_duration ?? 3)
+    )
+  }
 
   useEffect(() => {
     loadBuses()
-    const interval = setInterval(loadBuses, 5000)
+    // Increased to 30 seconds to reduce duplicate requests
+    const interval = setInterval(loadBuses, 30000)
     return () => clearInterval(interval)
   }, [])
 
@@ -26,17 +44,27 @@ function PowerPage() {
       const response = await axios.get(API.node.buses)
       const data = response.data
       setBusConfigs(data)
-      setFormValues(Object.fromEntries(
-        Object.entries(data).map(([busId, config]) => [
-          busId,
-          {
-            bus_name: config.bus_name || busId,
-            deep_sleep_enabled: config.deep_sleep_enabled !== false,
-            maintenance_interval: config.maintenance_interval ?? 5,
-            maintenance_duration: config.maintenance_duration ?? 3
+      
+      // Only update formValues if they don't exist yet (preserve user input during auto-refresh)
+      setFormValues(prev => {
+        const newFormValues = {}
+        Object.entries(data).forEach(([busId, config]) => {
+          // If user already has form values for this bus, keep them (don't overwrite unsaved changes)
+          if (prev[busId]) {
+            newFormValues[busId] = prev[busId]
+          } else {
+            // New bus, initialize form values
+            newFormValues[busId] = {
+              bus_name: config.bus_name || busId,
+              deep_sleep_enabled: config.deep_sleep_enabled !== false,
+              maintenance_interval: config.maintenance_interval ?? 5,
+              maintenance_duration: config.maintenance_duration ?? 3
+            }
           }
-        ])
-      ))
+        })
+        return newFormValues
+      })
+      
       setLastUpdate(new Date())
     } catch (error) {
       console.error('Error loading buses:', error)
@@ -60,19 +88,44 @@ function PowerPage() {
     const config = formValues[busId]
     if (!config) return
 
+    setSavingBusId(busId)
+    
     try {
-      await axios.post(API.node.powerConfig, {
+      const response = await axios.post(API.node.powerConfig, {
         bus_id: busId,
         ...config
       })
 
+      // Update local state instead of refetching all buses
+      const configData = response.data.config || response.data
+      setBusConfigs(prev => ({
+        ...prev,
+        [busId]: {
+          ...prev[busId],
+          bus_name: config.bus_name,
+          deep_sleep_enabled: config.deep_sleep_enabled,
+          maintenance_interval: config.maintenance_interval,
+          maintenance_duration: config.maintenance_duration,
+          last_updated: new Date().toISOString()
+        }
+      }))
+      
+      // Update form values to match saved config (so auto-refresh doesn't overwrite)
+      setFormValues(prev => ({
+        ...prev,
+        [busId]: {
+          ...config
+        }
+      }))
+
       const boards = busConfigs[busId]?.boards || []
       const onlineBoards = boards.filter(isBoardOnline).length
       toast.success(`Config applied. ${onlineBoards}/${boards.length} boards will sync within 30s.`)
-      loadBuses()
     } catch (error) {
       console.error('Error updating config:', error)
       toast.error('Failed to update configuration')
+    } finally {
+      setSavingBusId(null)
     }
   }
 
@@ -85,14 +138,30 @@ function PowerPage() {
     const { busId } = deleteConfirmModal
     if (!busId) return
 
+    setDeletingBusId(busId)
+    
     try {
       await axios.delete(`${API.node.powerConfig}/${busId}`)
+      
+      // Update local state instead of refetching all buses
+      setBusConfigs(prev => {
+        const newConfigs = { ...prev }
+        delete newConfigs[busId]
+        return newConfigs
+      })
+      setFormValues(prev => {
+        const newValues = { ...prev }
+        delete newValues[busId]
+        return newValues
+      })
+      
       toast.success(`Removed ${busId} configuration`)
       setDeleteConfirmModal({ open: false, busId: null, boardCount: 0 })
-      loadBuses()
     } catch (error) {
       console.error('Error deleting bus:', error)
       toast.error('Failed to delete bus configuration')
+    } finally {
+      setDeletingBusId(null)
     }
   }
 
@@ -118,23 +187,55 @@ function PowerPage() {
       return
     }
 
+    setAddingBus(true)
+    
     try {
-      await axios.post(API.node.powerConfig, {
+      const newConfig = {
         bus_id: newBusData.bus_id.trim(),
-        bus_name: newBusData.bus_id.trim(), // Use Bus ID as name
+        bus_name: newBusData.bus_id.trim(),
         deep_sleep_enabled: true,
         trip_start: '00:00',
         trip_end: '23:59',
         maintenance_interval: 5,
         maintenance_duration: 3
-      })
+      }
+      
+      const response = await axios.post(API.node.powerConfig, newConfig)
+
+      // Update local state instead of refetching all buses
+      const busId = newBusData.bus_id.trim()
+      const configData = response.data.config || response.data
+      setBusConfigs(prev => ({
+        ...prev,
+        [busId]: {
+          bus_id: busId,
+          bus_name: newConfig.bus_name,
+          deep_sleep_enabled: newConfig.deep_sleep_enabled,
+          trip_start: newConfig.trip_start,
+          trip_end: newConfig.trip_end,
+          maintenance_interval: newConfig.maintenance_interval,
+          maintenance_duration: newConfig.maintenance_duration,
+          boards: [],
+          last_updated: new Date().toISOString()
+        }
+      }))
+      setFormValues(prev => ({
+        ...prev,
+        [busId]: {
+          bus_name: newConfig.bus_name,
+          deep_sleep_enabled: newConfig.deep_sleep_enabled,
+          maintenance_interval: newConfig.maintenance_interval,
+          maintenance_duration: newConfig.maintenance_duration
+        }
+      }))
 
       toast.success(`Added ${newBusData.bus_id}`)
       setAddBusModalOpen(false)
-      loadBuses()
     } catch (error) {
       console.error('Error adding bus:', error)
       toast.error('Failed to add bus configuration')
+    } finally {
+      setAddingBus(false)
     }
   }
 
@@ -212,7 +313,7 @@ function PowerPage() {
             </p>
           </div>
           <div className="rounded-xl border border-purple-500/20 bg-slate-800/50 px-4 py-2 text-sm text-slate-300">
-            <div>Auto-refresh every 5s</div>
+            <div>Auto-refresh every 30s</div>
             <div>Last update: {lastUpdate ? lastUpdate.toLocaleTimeString() : '—'}</div>
           </div>
         </div>
@@ -262,9 +363,20 @@ function PowerPage() {
               </button>
               <button
                 onClick={deleteBus}
-                className="flex-1 px-4 py-3 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg shadow-lg shadow-red-500/50 hover:shadow-xl transition-all font-semibold"
+                disabled={deletingBusId !== null}
+                className="flex-1 px-4 py-3 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg shadow-lg shadow-red-500/50 hover:shadow-xl transition-all font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                Delete Bus
+                {deletingBusId ? (
+                  <>
+                    <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Deleting...
+                  </>
+                ) : (
+                  'Delete Bus'
+                )}
               </button>
             </div>
           </div>
@@ -346,9 +458,20 @@ function PowerPage() {
               </button>
               <button
                 onClick={addNewBus}
-                className="flex-1 px-4 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg shadow-lg shadow-purple-500/50 hover:shadow-xl transition-all font-semibold"
+                disabled={addingBus}
+                className="flex-1 px-4 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg shadow-lg shadow-purple-500/50 hover:shadow-xl transition-all font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                Add Bus
+                {addingBus ? (
+                  <>
+                    <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Adding...
+                  </>
+                ) : (
+                  'Add Bus'
+                )}
               </button>
             </div>
           </div>
@@ -458,9 +581,24 @@ function PowerPage() {
 
                   <button
                     onClick={() => updateBusConfig(busId)}
-                    className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-500/30 transition-all hover:shadow-xl hover:shadow-emerald-500/40"
+                    disabled={savingBusId === busId}
+                    className={`mt-6 inline-flex w-full items-center justify-center gap-2 rounded-lg px-5 py-3 text-sm font-semibold text-white shadow-lg transition-all hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed ${
+                      hasUnsavedChanges(busId)
+                        ? 'bg-gradient-to-r from-orange-500 to-orange-600 shadow-orange-500/30 hover:shadow-orange-500/40 animate-pulse'
+                        : 'bg-gradient-to-r from-emerald-500 to-emerald-600 shadow-emerald-500/30 hover:shadow-emerald-500/40'
+                    }`}
                   >
-                    💾 Apply settings to {busId}
+                    {savingBusId === busId ? (
+                      <>
+                        <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Saving...
+                      </>
+                    ) : (
+                      <>{hasUnsavedChanges(busId) ? '⚠️ Save Changes' : '💾 Apply settings'} to {busId}</>
+                    )}
                   </button>
 
                   <div className="mt-6 space-y-3">

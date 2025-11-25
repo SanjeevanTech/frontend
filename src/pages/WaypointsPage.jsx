@@ -3,6 +3,7 @@ import axios from '../utils/axios'
 import { toast } from 'react-hot-toast'
 import { API } from '../config/api'
 import LoadingSpinner from '../components/LoadingSpinner'
+import DeleteConfirmModal from '../components/DeleteConfirmModal'
 
 const API_BASE = API.node.busRoutes.replace('/bus-routes', '')
 
@@ -11,6 +12,9 @@ function WaypointsPage() {
   const [loading, setLoading] = useState(true)
   const [showAddForm, setShowAddForm] = useState(false)
   const [editingGroup, setEditingGroup] = useState(null)
+  const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteConfirmModal, setDeleteConfirmModal] = useState({ open: false, groupId: null, groupName: '', waypointCount: 0 })
   
   const [formData, setFormData] = useState({
     group_name: ''
@@ -84,6 +88,8 @@ function WaypointsPage() {
       }
     }
 
+    setSaving(true)
+    
     try {
       const payload = {
         ...formData,
@@ -95,19 +101,28 @@ function WaypointsPage() {
       }
 
       if (editingGroup) {
-        await axios.put(`${API_BASE}/waypoint-groups/${editingGroup.group_id}`, payload)
+        const response = await axios.put(`${API_BASE}/waypoint-groups/${editingGroup.group_id}`, payload)
         toast.success('Waypoint group updated successfully!')
+        
+        // Update local state instead of refetching
+        setGroups(prev => prev.map(group => 
+          group.group_id === editingGroup.group_id ? { ...group, ...response.data.group } : group
+        ))
       } else {
-        await axios.post(`${API_BASE}/waypoint-groups`, payload)
+        const response = await axios.post(`${API_BASE}/waypoint-groups`, payload)
         toast.success('Waypoint group created successfully!')
+        
+        // Add to local state instead of refetching
+        setGroups(prev => [...prev, response.data.group])
       }
 
       resetForm()
-      fetchGroups()
       setShowAddForm(false)
     } catch (error) {
       console.error('Error saving waypoint group:', error)
       toast.error(error.response?.data?.message || 'Failed to save waypoint group')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -133,17 +148,34 @@ function WaypointsPage() {
     }, 100)
   }
 
-  const deleteGroup = async (group_id) => {
-    const confirmed = window.confirm('Are you sure you want to deactivate this waypoint group?')
-    if (!confirmed) return
+  const openDeleteConfirm = (group_id) => {
+    const group = groups.find(g => g.group_id === group_id)
+    const groupName = group?.group_name || 'this waypoint group'
+    const waypointCount = group?.waypoints?.length || 0
+    setDeleteConfirmModal({ open: true, groupId: group_id, groupName, waypointCount })
+  }
 
+  const deleteGroup = async () => {
+    const { groupId } = deleteConfirmModal
+    if (!groupId) return
+
+    setDeleting(true)
+    
     try {
-      await axios.delete(`${API_BASE}/waypoint-groups/${group_id}`)
-      toast.success('Waypoint group deactivated successfully!')
-      fetchGroups()
+      await axios.delete(`${API_BASE}/waypoint-groups/${groupId}`)
+      
+      // Update local state instead of refetching
+      setGroups(prev => prev.map(group => 
+        group.group_id === groupId ? { ...group, is_active: false } : group
+      ))
+      
+      toast.success('Waypoint group deleted successfully!')
+      setDeleteConfirmModal({ open: false, groupId: null, groupName: '', waypointCount: 0 })
     } catch (error) {
       console.error('Error deleting waypoint group:', error)
       toast.error('Failed to delete waypoint group')
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -157,6 +189,19 @@ function WaypointsPage() {
 
   return (
     <div className="space-y-6">
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmModal
+        isOpen={deleteConfirmModal.open}
+        onClose={() => setDeleteConfirmModal({ open: false, groupId: null, groupName: '', waypointCount: 0 })}
+        onConfirm={deleteGroup}
+        title="Confirm Deletion"
+        itemName={`Delete ${deleteConfirmModal.groupName}?`}
+        warningMessage={deleteConfirmModal.waypointCount > 0 ? `This group has ${deleteConfirmModal.waypointCount} waypoint(s).` : undefined}
+        noteMessage="This will mark the waypoint group as inactive. You can reactivate it later if needed."
+        confirmButtonText="Delete Group"
+        isDeleting={deleting}
+      />
+
       <header className="text-center">
         <h1 className="text-3xl font-bold text-slate-100 flex items-center justify-center gap-2">
           <span>📍</span>
@@ -272,10 +317,21 @@ function WaypointsPage() {
 
             <div className="flex gap-3">
               <button 
-                type="submit" 
-                className="flex-1 px-6 py-4 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold rounded-lg shadow-lg shadow-purple-500/50 hover:shadow-xl transition-all"
+                type="submit"
+                disabled={saving}
+                className="flex-1 px-6 py-4 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold rounded-lg shadow-lg shadow-purple-500/50 hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                💾 {editingGroup ? 'Update' : 'Create'}
+                {saving ? (
+                  <>
+                    <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    {editingGroup ? 'Updating...' : 'Creating...'}
+                  </>
+                ) : (
+                  <>💾 {editingGroup ? 'Update' : 'Create'}</>
+                )}
               </button>
               <button 
                 type="button" 
@@ -343,7 +399,7 @@ function WaypointsPage() {
                     ✏️ Edit
                   </button>
                   <button 
-                    onClick={() => deleteGroup(group.group_id)} 
+                    onClick={() => openDeleteConfirm(group.group_id)} 
                     className="flex-1 px-3 py-2 text-sm bg-red-500/20 text-red-300 border border-red-500/30 rounded-lg font-medium hover:bg-red-500/30 transition-all"
                   >
                     🗑️ Delete

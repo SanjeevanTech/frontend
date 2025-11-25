@@ -3,6 +3,7 @@ import axios from '../utils/axios'
 import { API } from '../config/api'
 import { toast } from 'react-hot-toast'
 import LoadingSpinner from '../components/LoadingSpinner'
+import DeleteConfirmModal from '../components/DeleteConfirmModal'
 
 function RoutesPage() {
   const [routes, setRoutes] = useState([])
@@ -11,6 +12,9 @@ function RoutesPage() {
   const [showAddForm, setShowAddForm] = useState(false)
   const [editingRoute, setEditingRoute] = useState(null)
   const [useWaypointGroups, setUseWaypointGroups] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteConfirmModal, setDeleteConfirmModal] = useState({ open: false, routeId: null, routeName: '', stopCount: 0 })
   const [formData, setFormData] = useState({
     route_name: '',
     description: '',
@@ -121,6 +125,8 @@ function RoutesPage() {
       }
     }
 
+    setSaving(true)
+    
     try {
       const payload = {
         ...formData,
@@ -143,19 +149,28 @@ function RoutesPage() {
       }
 
       if (editingRoute) {
-        await axios.put(`/api/bus-routes/${editingRoute.route_id}`, payload)
+        const response = await axios.put(`/api/bus-routes/${editingRoute.route_id}`, payload)
         toast.success('Route updated successfully!')
+        
+        // Update local state instead of refetching
+        setRoutes(prev => prev.map(route => 
+          route.route_id === editingRoute.route_id ? { ...route, ...response.data.route } : route
+        ))
       } else {
-        await axios.post('/api/bus-routes', payload)
+        const response = await axios.post('/api/bus-routes', payload)
         toast.success('Route created successfully!')
+        
+        // Add to local state instead of refetching
+        setRoutes(prev => [...prev, response.data.route])
       }
 
       resetForm()
-      fetchRoutes()
       setShowAddForm(false)
     } catch (error) {
       console.error('Error saving route:', error)
       toast.error(error.response?.data?.message || 'Failed to save route')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -212,18 +227,31 @@ function RoutesPage() {
     setShowAddForm(true)
   }
 
-  const deleteRoute = async (route_id, route_name) => {
-    if (!window.confirm(`Are you sure you want to deactivate "${route_name}"?`)) {
-      return
-    }
+  const openDeleteConfirm = (route_id, route_name, stopCount) => {
+    setDeleteConfirmModal({ open: true, routeId: route_id, routeName: route_name, stopCount })
+  }
 
+  const deleteRoute = async () => {
+    const { routeId } = deleteConfirmModal
+    if (!routeId) return
+
+    setDeleting(true)
+    
     try {
-      await axios.delete(`/api/bus-routes/${route_id}`)
-      toast.success('Route deactivated successfully!')
-      fetchRoutes()
+      await axios.delete(`/api/bus-routes/${routeId}`)
+      
+      // Update local state instead of refetching
+      setRoutes(prev => prev.map(route => 
+        route.route_id === routeId ? { ...route, is_active: false } : route
+      ))
+      
+      toast.success('Route deleted successfully!')
+      setDeleteConfirmModal({ open: false, routeId: null, routeName: '', stopCount: 0 })
     } catch (error) {
       console.error('Error deleting route:', error)
       toast.error('Failed to delete route')
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -231,7 +259,11 @@ function RoutesPage() {
     try {
       await axios.put(`/api/bus-routes/${route_id}`, { is_active: true })
       toast.success('Route reactivated successfully!')
-      fetchRoutes()
+      
+      // Update local state instead of refetching
+      setRoutes(prev => prev.map(route => 
+        route.route_id === route_id ? { ...route, is_active: true } : route
+      ))
     } catch (error) {
       console.error('Error reactivating route:', error)
       toast.error('Failed to reactivate route')
@@ -248,6 +280,19 @@ function RoutesPage() {
 
   return (
     <div className="space-y-6">
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmModal
+        isOpen={deleteConfirmModal.open}
+        onClose={() => setDeleteConfirmModal({ open: false, routeId: null, routeName: '', stopCount: 0 })}
+        onConfirm={deleteRoute}
+        title="Confirm Deletion"
+        itemName={`Delete "${deleteConfirmModal.routeName}"?`}
+        warningMessage={deleteConfirmModal.stopCount > 0 ? `This route has ${deleteConfirmModal.stopCount} stop(s).` : undefined}
+        noteMessage="This will mark the route as inactive. You can reactivate it later if needed."
+        confirmButtonText="Delete Route"
+        isDeleting={deleting}
+      />
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -618,9 +663,20 @@ function RoutesPage() {
             <div className="flex gap-3 pt-4">
               <button
                 type="submit"
-                className="flex-1 px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg shadow-lg shadow-purple-500/50 hover:shadow-xl transition-all font-semibold"
+                disabled={saving}
+                className="flex-1 px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg shadow-lg shadow-purple-500/50 hover:shadow-xl transition-all font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                💾 {editingRoute ? 'Update Route' : 'Create Route'}
+                {saving ? (
+                  <>
+                    <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    {editingRoute ? 'Updating...' : 'Creating...'}
+                  </>
+                ) : (
+                  <>💾 {editingRoute ? 'Update Route' : 'Create Route'}</>
+                )}
               </button>
               <button
                 type="button"
@@ -750,10 +806,10 @@ function RoutesPage() {
                 </button>
                 {route.is_active ? (
                   <button
-                    onClick={() => deleteRoute(route.route_id, route.route_name)}
+                    onClick={() => openDeleteConfirm(route.route_id, route.route_name, route.stops?.length || 0)}
                     className="flex-1 px-4 py-2 bg-red-500/20 text-red-300 rounded-lg hover:bg-red-500/30 transition-all font-medium text-sm border border-red-500/30"
                   >
-                    ⏸️ Deactivate
+                    🗑️ Delete
                   </button>
                 ) : (
                   <button

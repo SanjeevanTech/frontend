@@ -45,8 +45,13 @@ function FaresPage() {
       })
       
       toast.success('Fare updated successfully!')
+      
+      // Update local state instead of refetching
+      setStages(prev => prev.map(stage => 
+        stage.stage_number === stageNumber ? { ...stage, fare: parseFloat(newFare) } : stage
+      ))
+      
       setEditingStage(null)
-      fetchStages(false)
     } catch (error) {
       toast.error('Failed to update fare: ' + error.message)
     }

@@ -13,6 +13,7 @@ function SeasonTicketsPage() {
   const [loading, setLoading] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
   const [filter, setFilter] = useState('all'); // all, active, expired
+  const [saving, setSaving] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -258,6 +259,8 @@ function SeasonTicketsPage() {
       return;
     }
 
+    setSaving(true);
+    
     try {
       const payload = {
         ...formData,
@@ -275,20 +278,30 @@ function SeasonTicketsPage() {
       }
 
       if (editingMemberId) {
-        await axios.put(`${API_BASE}/season-ticket/members/${editingMemberId}`, payload);
+        const response = await axios.put(`${API_BASE}/season-ticket/members/${editingMemberId}`, payload);
         toast.success(`Season ticket member updated successfully! Valid for: ${formData.from_location} → ${formData.to_location}`);
+        
+        // Update local state instead of refetching
+        setMembers(prev => prev.map(member => 
+          member.member_id === editingMemberId ? { ...member, ...response.data.member } : member
+        ));
       } else {
-        await axios.post(`${API_BASE}/season-ticket/members`, payload);
+        const response = await axios.post(`${API_BASE}/season-ticket/members`, payload);
         toast.success(`Season ticket member added successfully! Valid for: ${formData.from_location} → ${formData.to_location}`);
+        
+        // Add to local state instead of refetching
+        setMembers(prev => [...prev, response.data.member]);
       }
 
-      resetForm();
-      fetchMembers();
+      // Fetch stats only (lightweight)
       fetchStats();
+      resetForm();
       setShowAddForm(false);
     } catch (error) {
       console.error('Error saving member:', error);
       toast.error(error.response?.data?.message || 'Failed to save member');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -334,12 +347,17 @@ function SeasonTicketsPage() {
 
     try {
       if (type === 'deactivate') {
-        console.log('Deactivating member:', memberId);
+        console.log('Disabling member:', memberId);
         const response = await axios.put(`${API_BASE}/season-ticket/members/${memberId}`, {
           is_active: false
         });
-        console.log('Deactivate response:', response);
-        toast.success('Member deactivated successfully');
+        console.log('Disable response:', response);
+        toast.success('Member disabled successfully');
+        
+        // Update local state instead of refetching
+        setMembers(prev => prev.map(member => 
+          member.member_id === memberId ? { ...member, is_active: false } : member
+        ));
       } else if (type === 'reactivate') {
         console.log('Reactivating member:', memberId);
         const response = await axios.put(`${API_BASE}/season-ticket/members/${memberId}`, {
@@ -347,15 +365,23 @@ function SeasonTicketsPage() {
         });
         console.log('Reactivate response:', response);
         toast.success('Member reactivated successfully');
+        
+        // Update local state instead of refetching
+        setMembers(prev => prev.map(member => 
+          member.member_id === memberId ? { ...member, is_active: true } : member
+        ));
       } else if (type === 'delete') {
         console.log('Deleting member permanently:', memberId);
         const response = await axios.delete(`${API_BASE}/season-ticket/members/${memberId}`);
         console.log('Delete response:', response);
         toast.success('Member deleted permanently');
+        
+        // Remove from local state instead of refetching
+        setMembers(prev => prev.filter(member => member.member_id !== memberId));
       }
       
       setConfirmModal({ open: false, type: null, memberId: null, memberName: '' });
-      fetchMembers();
+      // Fetch stats only (lightweight)
       fetchStats();
     } catch (error) {
       console.error(`Error ${type}ing member:`, error);
@@ -397,7 +423,7 @@ function SeasonTicketsPage() {
                 <span className="text-2xl">
                   {confirmModal.type === 'deactivate' ? '⏸️' : confirmModal.type === 'delete' ? '🗑️' : '▶️'}
                 </span>
-                {confirmModal.type === 'deactivate' ? 'Deactivate Member' : confirmModal.type === 'delete' ? 'Delete Member' : 'Reactivate Member'}
+                {confirmModal.type === 'deactivate' ? 'Disable Member' : confirmModal.type === 'delete' ? 'Delete Member' : 'Reactivate Member'}
               </h3>
             </div>
 
@@ -411,7 +437,7 @@ function SeasonTicketsPage() {
               }`}>
                 <p className="text-slate-200 font-semibold mb-2">
                   {confirmModal.type === 'deactivate' 
-                    ? `Deactivate ${confirmModal.memberName}?` 
+                    ? `Disable ${confirmModal.memberName}?` 
                     : confirmModal.type === 'delete'
                     ? `Delete ${confirmModal.memberName}?`
                     : `Reactivate ${confirmModal.memberName}?`}
@@ -457,7 +483,7 @@ function SeasonTicketsPage() {
                     : 'bg-gradient-to-r from-emerald-500 to-emerald-600 shadow-emerald-500/50 hover:shadow-xl'
                 }`}
               >
-                {confirmModal.type === 'deactivate' ? 'Deactivate' : confirmModal.type === 'delete' ? 'Delete Permanently' : 'Reactivate'}
+                {confirmModal.type === 'deactivate' ? 'Disable' : confirmModal.type === 'delete' ? 'Delete Permanently' : 'Reactivate'}
               </button>
             </div>
           </div>
@@ -730,10 +756,20 @@ function SeasonTicketsPage() {
 
             <button 
               type="submit"
-              disabled={!editingMemberId && !faceEmbedding}
-              className="w-full px-6 py-4 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg font-bold shadow-lg shadow-purple-500/50 hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:from-slate-600 disabled:to-slate-700"
+              disabled={(!editingMemberId && !faceEmbedding) || saving}
+              className="w-full px-6 py-4 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg font-bold shadow-lg shadow-purple-500/50 hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:from-slate-600 disabled:to-slate-700 flex items-center justify-center gap-2"
             >
-              💾 Save Season Ticket Member
+              {saving ? (
+                <>
+                  <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  {editingMemberId ? 'Updating...' : 'Saving...'}
+                </>
+              ) : (
+                <>💾 Save Season Ticket Member</>
+              )}
             </button>
           </form>
         </div>
@@ -813,9 +849,9 @@ function SeasonTicketsPage() {
                             <button 
                               onClick={() => openDeactivateConfirm(member.member_id, member.name)}
                               className="px-3 py-1.5 bg-orange-500/20 text-orange-300 border border-orange-500/30 rounded-lg text-xs font-medium hover:bg-orange-500/30 transition-all"
-                              title="Deactivate season ticket"
+                              title="Disable season ticket"
                             >
-                              ⏸️ Deactivate
+                              ⏸️ Disable
                             </button>
                           ) : (
                             <button 

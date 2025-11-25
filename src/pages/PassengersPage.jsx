@@ -61,9 +61,14 @@ function PassengersPage() {
       })
       
       if (selectedBus !== 'ALL') params.append('bus_id', selectedBus)
-      if (selectedTrip !== 'ALL') params.append('trip_id', selectedTrip)
+      if (selectedTrip !== 'ALL') {
+        params.append('trip_id', selectedTrip)
+        console.log('🔍 Fetching passengers for trip:', selectedTrip)
+      }
       
+      console.log('📡 API Request:', `/api/passengers?${params}`)
       const response = await axios.get(`/api/passengers?${params}`)
+      console.log('📦 API Response:', response.data)
       const passengers = response.data.passengers || []
       const total = response.data.total || 0
       
@@ -333,10 +338,19 @@ function PassengersPage() {
               </option>
               {availableTrips && availableTrips.map((trip, index) => {
                 const tripId = typeof trip === 'string' ? trip : trip.trip_id
-                const boardingTime = typeof trip === 'object' && trip.start_time
-                  ? format(new Date(trip.start_time), 'HH:mm')
+                // Use boarding_start_time or departure_time directly instead of start_time to avoid timezone issues
+                const boardingTime = typeof trip === 'object' 
+                  ? (trip.boarding_start_time || trip.departure_time || '')
                   : ''
-                const displayName = boardingTime ? `${tripId} (${boardingTime})` : tripId
+                
+                // Extract trip number from trip_id (e.g., "SCHEDULED_BUS_JC_001_2025-11-24_0" -> "Trip 1")
+                const tripMatch = tripId.match(/_(\d+)$/)
+                const tripNumber = tripMatch ? parseInt(tripMatch[1]) + 1 : index + 1
+                
+                const displayName = boardingTime 
+                  ? `Trip ${tripNumber} - ${boardingTime}` 
+                  : `Trip ${tripNumber}`
+                
                 return (
                   <option key={`${tripId}_${index}`} value={tripId} className="bg-slate-900 text-slate-100">
                     {displayName}
@@ -440,10 +454,19 @@ function PassengersPage() {
                     <option value="ALL" className="bg-slate-900 text-slate-100">All trips ({availableTrips.length})</option>
                     {availableTrips.map((trip, index) => {
                       const tripId = typeof trip === 'string' ? trip : trip.trip_id
-                      const boardingTime = typeof trip === 'object' && trip.start_time
-                        ? format(new Date(trip.start_time), 'HH:mm')
+                      // Use boarding_start_time or departure_time directly instead of start_time to avoid timezone issues
+                      const boardingTime = typeof trip === 'object' 
+                        ? (trip.boarding_start_time || trip.departure_time || '')
                         : ''
-                      const displayName = boardingTime ? `${tripId} (${boardingTime})` : tripId
+                      
+                      // Extract trip number from trip_id
+                      const tripMatch = tripId.match(/_(\d+)$/)
+                      const tripNumber = tripMatch ? parseInt(tripMatch[1]) + 1 : index + 1
+                      
+                      const displayName = boardingTime 
+                        ? `Trip ${tripNumber} - ${boardingTime}` 
+                        : `Trip ${tripNumber}`
+                      
                       return (
                         <option key={`${tripId}_${index}`} value={tripId} className="bg-slate-900 text-slate-100">
                           {displayName}

@@ -3,6 +3,9 @@ import axios from 'axios';
 // Check if we're in browser environment (not during SSR/build)
 const isBrowser = typeof window !== 'undefined';
 
+// Request deduplication cache
+const pendingRequests = new Map();
+
 // Create axios instance for Node.js backend (with credentials for auth)
 const axiosInstance = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000',
@@ -23,11 +26,25 @@ export const pythonAxios = axios.create({
   },
 });
 
-// Add request interceptor for debugging (only in browser)
+// Add request interceptor for debugging and deduplication (only in browser)
 axiosInstance.interceptors.request.use(
   (config) => {
     if (isBrowser) {
       console.log('🌐 Node API Request:', config.method?.toUpperCase(), config.url);
+      
+      // Request deduplication for GET requests only
+      if (config.method?.toLowerCase() === 'get') {
+        const requestKey = `${config.method}:${config.url}`;
+        
+        // If same request is already pending, return the existing promise
+        if (pendingRequests.has(requestKey)) {
+          console.log('⚡ Deduplicating request:', requestKey);
+          return pendingRequests.get(requestKey);
+        }
+        
+        // Store this request
+        config.requestKey = requestKey;
+      }
     }
     return config;
   },
@@ -44,12 +61,22 @@ axiosInstance.interceptors.response.use(
   (response) => {
     if (isBrowser) {
       console.log('✅ Node API Response:', response.config.url, response.status);
+      
+      // Clear from pending requests
+      if (response.config.requestKey) {
+        pendingRequests.delete(response.config.requestKey);
+      }
     }
     return response;
   },
   (error) => {
     if (isBrowser) {
       console.error('❌ Node API Error:', error.config?.url, error.response?.status, error.message);
+      
+      // Clear from pending requests
+      if (error.config?.requestKey) {
+        pendingRequests.delete(error.config.requestKey);
+      }
       
       // Handle 401 Unauthorized - redirect to login ONLY if not already on login page
       if (error.response?.status === 401 && !window.location.pathname.includes('/login')) {
