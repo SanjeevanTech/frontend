@@ -59,23 +59,23 @@ function PassengersPage() {
         skip: currentPage * itemsPerPage,
         date: dateStr
       })
-      
+
       if (selectedBus !== 'ALL') params.append('bus_id', selectedBus)
       if (selectedTrip !== 'ALL') {
         params.append('trip_id', selectedTrip)
         console.log('🔍 Fetching passengers for trip:', selectedTrip)
       }
-      
+
       console.log('📡 API Request:', `/api/passengers?${params}`)
       const response = await axios.get(`/api/passengers?${params}`)
       console.log('📦 API Response:', response.data)
       const passengers = response.data.passengers || []
       const total = response.data.total || 0
-      
+
       setPassengers(passengers)
       setFilteredPassengers(passengers)
       setTotalPassengers(total)
-      
+
       calculateStats(passengers)
     } catch (err) {
       toast.error('Failed to fetch passenger data')
@@ -89,12 +89,12 @@ function PassengersPage() {
     try {
       const dateStr = format(selectedDate, 'yyyy-MM-dd')
       const params = new URLSearchParams({ date: dateStr })
-      
+
       if (selectedBus !== 'ALL') params.append('bus_id', selectedBus)
-      
+
       const response = await axios.get(`/api/trips?${params}`)
       const trips = response.data.trips || []
-      
+
       setAvailableTrips(trips)
     } catch (err) {
       console.error('Error fetching available trips:', err)
@@ -105,18 +105,18 @@ function PassengersPage() {
   const calculateStats = async (data) => {
     const totalPassengers = data.length
     const totalRevenue = data.reduce((sum, p) => sum + (p.price || 0), 0)
-    
+
     let routeDistance = 0
     if (data.length > 0) {
       try {
         const dateStr = format(selectedDate, 'yyyy-MM-dd')
         const params = new URLSearchParams({ date: dateStr })
-        
+
         if (selectedTrip !== 'ALL') params.append('trip_id', selectedTrip)
         if (selectedBus !== 'ALL') params.append('bus_id', selectedBus)
-        
+
         const response = await axios.get(`/api/route-distance?${params}`)
-        
+
         if (response.data.success) {
           routeDistance = response.data.distance_km
         }
@@ -300,7 +300,7 @@ function PassengersPage() {
             <label className="text-sm font-semibold text-slate-300 block">
               Select Bus
             </label>
-            <BusSelector 
+            <BusSelector
               selectedBus={selectedBus}
               onBusChange={handleBusChange}
               showAll={true}
@@ -339,18 +339,26 @@ function PassengersPage() {
               {availableTrips && availableTrips.map((trip, index) => {
                 const tripId = typeof trip === 'string' ? trip : trip.trip_id
                 // Use boarding_start_time or departure_time directly instead of start_time to avoid timezone issues
-                const boardingTime = typeof trip === 'object' 
+                const boardingTime = typeof trip === 'object'
                   ? (trip.boarding_start_time || trip.departure_time || '')
                   : ''
-                
+                // Get end time from end_time or estimated_arrival_time
+                const endTime = typeof trip === 'object'
+                  ? (trip.end_time || trip.estimated_arrival_time || '')
+                  : ''
+
                 // Extract trip number from trip_id (e.g., "SCHEDULED_BUS_JC_001_2025-11-24_0" -> "Trip 1")
                 const tripMatch = tripId.match(/_(\d+)$/)
                 const tripNumber = tripMatch ? parseInt(tripMatch[1]) + 1 : index + 1
-                
-                const displayName = boardingTime 
-                  ? `Trip ${tripNumber} - ${boardingTime}` 
-                  : `Trip ${tripNumber}`
-                
+
+                // Create display name with both start and end times
+                let displayName = `Trip ${tripNumber}`
+                if (boardingTime && endTime) {
+                  displayName = `Trip ${tripNumber} - ${boardingTime} → ${endTime}`
+                } else if (boardingTime) {
+                  displayName = `Trip ${tripNumber} - ${boardingTime}`
+                }
+
                 return (
                   <option key={`${tripId}_${index}`} value={tripId} className="bg-slate-900 text-slate-100">
                     {displayName}
@@ -382,11 +390,11 @@ function PassengersPage() {
       {filterModalOpen && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
           {/* Backdrop */}
-          <div 
+          <div
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
             onClick={() => setFilterModalOpen(false)}
           />
-          
+
           {/* Modal */}
           <div className="relative w-full sm:max-w-lg bg-slate-900 border border-purple-500/30 rounded-t-3xl sm:rounded-2xl shadow-2xl shadow-purple-500/20 max-h-[90vh] overflow-y-auto">
             {/* Header */}
@@ -415,7 +423,7 @@ function PassengersPage() {
                   <span className="text-lg">🚌</span>
                   Select Bus
                 </label>
-                <BusSelector 
+                <BusSelector
                   selectedBus={tempFilters.bus}
                   onBusChange={(bus) => setTempFilters(prev => ({ ...prev, bus }))}
                   showAll={true}
@@ -455,18 +463,26 @@ function PassengersPage() {
                     {availableTrips.map((trip, index) => {
                       const tripId = typeof trip === 'string' ? trip : trip.trip_id
                       // Use boarding_start_time or departure_time directly instead of start_time to avoid timezone issues
-                      const boardingTime = typeof trip === 'object' 
+                      const boardingTime = typeof trip === 'object'
                         ? (trip.boarding_start_time || trip.departure_time || '')
                         : ''
-                      
+                      // Get end time from end_time or estimated_arrival_time
+                      const endTime = typeof trip === 'object'
+                        ? (trip.end_time || trip.estimated_arrival_time || '')
+                        : ''
+
                       // Extract trip number from trip_id
                       const tripMatch = tripId.match(/_(\d+)$/)
                       const tripNumber = tripMatch ? parseInt(tripMatch[1]) + 1 : index + 1
-                      
-                      const displayName = boardingTime 
-                        ? `Trip ${tripNumber} - ${boardingTime}` 
-                        : `Trip ${tripNumber}`
-                      
+
+                      // Create display name with both start and end times
+                      let displayName = `Trip ${tripNumber}`
+                      if (boardingTime && endTime) {
+                        displayName = `Trip ${tripNumber} - ${boardingTime} → ${endTime}`
+                      } else if (boardingTime) {
+                        displayName = `Trip ${tripNumber} - ${boardingTime}`
+                      }
+
                       return (
                         <option key={`${tripId}_${index}`} value={tripId} className="bg-slate-900 text-slate-100">
                           {displayName}
@@ -618,13 +634,12 @@ function PassengersPage() {
                     </td>
                     <td className="px-4 py-3">
                       <span
-                        className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
-                          passenger.similarity_score > 0.9
+                        className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${passenger.similarity_score > 0.9
                             ? 'bg-emerald-500/10 text-emerald-300'
                             : passenger.similarity_score > 0.8
                               ? 'bg-amber-500/10 text-amber-300'
                               : 'bg-rose-500/10 text-rose-300'
-                        }`}
+                          }`}
                       >
                         {(passenger.similarity_score * 100).toFixed(1)}%
                       </span>
@@ -634,7 +649,7 @@ function PassengersPage() {
               </tbody>
             </table>
           </div>
-          
+
           <div className="mt-6">
             <Pagination
               currentPage={currentPage}

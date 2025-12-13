@@ -38,27 +38,6 @@ function UnmatchedPage() {
     setCurrentPage(0)
   }, [selectedDate, filterType, selectedBus, selectedTrip])
 
-  useEffect(() => {
-    fetchAvailableTrips()
-  }, [selectedDate, selectedBus])
-
-  const fetchAvailableTrips = async () => {
-    try {
-      const dateStr = format(selectedDate, 'yyyy-MM-dd')
-      const params = new URLSearchParams({ date: dateStr })
-      
-      if (selectedBus !== 'ALL') params.append('bus_id', selectedBus)
-      
-      const response = await axios.get(`/api/trips?${params}`)
-      const trips = response.data.trips || []
-      
-      setAvailableTrips(trips)
-    } catch (err) {
-      console.error('Error fetching available trips:', err)
-      setAvailableTrips([])
-    }
-  }
-
   const fetchUnmatched = async () => {
     try {
       setLoading(true)
@@ -211,19 +190,10 @@ function UnmatchedPage() {
               </option>
               {availableTrips && availableTrips.map((trip, index) => {
                 const tripId = typeof trip === 'string' ? trip : trip.trip_id
-                // Use boarding_start_time or departure_time directly instead of start_time to avoid timezone issues
-                const boardingTime = typeof trip === 'object' 
-                  ? (trip.boarding_start_time || trip.departure_time || '')
+                const boardingTime = typeof trip === 'object' && trip.start_time
+                  ? format(new Date(trip.start_time), 'HH:mm')
                   : ''
-                
-                // Extract trip number from trip_id
-                const tripMatch = tripId.match(/_(\d+)$/)
-                const tripNumber = tripMatch ? parseInt(tripMatch[1]) + 1 : index + 1
-                
-                const displayName = boardingTime 
-                  ? `Trip ${tripNumber} - ${boardingTime}` 
-                  : `Trip ${tripNumber}`
-                
+                const displayName = boardingTime ? `${tripId} (${boardingTime})` : tripId
                 return (
                   <option key={`${tripId}_${index}`} value={tripId} className="bg-slate-900 text-slate-100">
                     {displayName}
@@ -320,22 +290,9 @@ function UnmatchedPage() {
                     <option value="ALL" className="bg-slate-900 text-slate-100">All trips ({availableTrips.length})</option>
                     {availableTrips.map((trip, index) => {
                       const tripId = typeof trip === 'string' ? trip : trip.trip_id
-                      // Use boarding_start_time or departure_time directly instead of start_time to avoid timezone issues
-                      const boardingTime = typeof trip === 'object' 
-                        ? (trip.boarding_start_time || trip.departure_time || '')
-                        : ''
-                      
-                      // Extract trip number from trip_id
-                      const tripMatch = tripId.match(/_(\d+)$/)
-                      const tripNumber = tripMatch ? parseInt(tripMatch[1]) + 1 : index + 1
-                      
-                      const displayName = boardingTime 
-                        ? `Trip ${tripNumber} - ${boardingTime}` 
-                        : `Trip ${tripNumber}`
-                      
                       return (
                         <option key={`${tripId}_${index}`} value={tripId} className="bg-slate-900 text-slate-100">
-                          {displayName}
+                          {tripId}
                         </option>
                       )
                     })}

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import axios from '../utils/axios'
 import { API } from '../config/api'
 import LoadingSpinner from '../components/LoadingSpinner'
+import DeleteConfirmModal from '../components/DeleteConfirmModal'
 import { toast } from 'react-hot-toast'
 
 function PowerPage() {
@@ -17,13 +18,13 @@ function PowerPage() {
   const [savingBusId, setSavingBusId] = useState(null)
   const [deletingBusId, setDeletingBusId] = useState(null)
   const [addingBus, setAddingBus] = useState(false)
-  
+
   // Helper function to check if form has unsaved changes
   const hasUnsavedChanges = (busId) => {
     const form = formValues[busId]
     const config = busConfigs[busId]
     if (!form || !config) return false
-    
+
     return (
       form.bus_name !== (config.bus_name || busId) ||
       form.deep_sleep_enabled !== (config.deep_sleep_enabled !== false) ||
@@ -44,7 +45,7 @@ function PowerPage() {
       const response = await axios.get(API.node.buses)
       const data = response.data
       setBusConfigs(data)
-      
+
       // Only update formValues if they don't exist yet (preserve user input during auto-refresh)
       setFormValues(prev => {
         const newFormValues = {}
@@ -64,7 +65,7 @@ function PowerPage() {
         })
         return newFormValues
       })
-      
+
       setLastUpdate(new Date())
     } catch (error) {
       console.error('Error loading buses:', error)
@@ -89,7 +90,7 @@ function PowerPage() {
     if (!config) return
 
     setSavingBusId(busId)
-    
+
     try {
       const response = await axios.post(API.node.powerConfig, {
         bus_id: busId,
@@ -109,7 +110,7 @@ function PowerPage() {
           last_updated: new Date().toISOString()
         }
       }))
-      
+
       // Update form values to match saved config (so auto-refresh doesn't overwrite)
       setFormValues(prev => ({
         ...prev,
@@ -139,10 +140,10 @@ function PowerPage() {
     if (!busId) return
 
     setDeletingBusId(busId)
-    
+
     try {
       await axios.delete(`${API.node.powerConfig}/${busId}`)
-      
+
       // Update local state instead of refetching all buses
       setBusConfigs(prev => {
         const newConfigs = { ...prev }
@@ -154,7 +155,7 @@ function PowerPage() {
         delete newValues[busId]
         return newValues
       })
-      
+
       toast.success(`Removed ${busId} configuration`)
       setDeleteConfirmModal({ open: false, busId: null, boardCount: 0 })
     } catch (error) {
@@ -188,7 +189,7 @@ function PowerPage() {
     }
 
     setAddingBus(true)
-    
+
     try {
       const newConfig = {
         bus_id: newBusData.bus_id.trim(),
@@ -199,7 +200,7 @@ function PowerPage() {
         maintenance_interval: 5,
         maintenance_duration: 3
       }
-      
+
       const response = await axios.post(API.node.powerConfig, newConfig)
 
       // Update local state instead of refetching all buses
@@ -243,8 +244,13 @@ function PowerPage() {
     if (!board?.last_seen) return false
     const lastSeen = new Date(board.last_seen)
     if (Number.isNaN(lastSeen.getTime())) return false
-    const secondsAgo = (Date.now() - lastSeen.getTime()) / 1000
-    return secondsAgo < 75
+    // Calculate time difference - handle both future and past timestamps
+    const diffMs = Date.now() - lastSeen.getTime()
+    // If timestamp is in the future (clock skew), treat as just received
+    // But still require a recent heartbeat (within 75 seconds)
+    const secondsAgo = Math.abs(diffMs) / 1000
+    // Board is online only if heartbeat was within last 75 seconds AND not too far in the future
+    return diffMs >= -5000 && secondsAgo < 75
   }
 
   const renderBoard = (board) => {
@@ -259,9 +265,8 @@ function PowerPage() {
             {board.location || 'Unknown'} · {board.ip_address || 'No IP'} · {timeDiff}
           </p>
         </div>
-        <span className={`rounded-full px-3 py-1 text-xs font-semibold ${
-          online ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-slate-700/50 text-slate-400 border border-slate-600'
-        }`}
+        <span className={`rounded-full px-3 py-1 text-xs font-semibold ${online ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-slate-700/50 text-slate-400 border border-slate-600'
+          }`}
         >
           {online ? '● Online' : '○ Offline'}
         </span>
@@ -274,7 +279,10 @@ function PowerPage() {
     if (Number.isNaN(lastSeen.getTime())) return 'Invalid timestamp'
 
     const diffMs = Date.now() - lastSeen.getTime()
-    if (diffMs < 0) return 'Just now'
+    // If timestamp is slightly in the future (within 5 seconds due to clock skew), show as just now
+    if (diffMs < 0 && diffMs > -5000) return 'Just now'
+    // If timestamp is more than 5 seconds in the future, show the actual time
+    if (diffMs <= -5000) return `Clock skew: ${lastSeen.toLocaleTimeString()}`
 
     const diffSec = Math.floor(diffMs / 1000)
     if (diffSec < 60) return `${diffSec}s ago`
@@ -320,77 +328,26 @@ function PowerPage() {
       </section>
 
       {/* Delete Confirmation Modal */}
-      {deleteConfirmModal.open && (
-        <div className="fixed inset-0 flex items-center justify-center p-4" style={{ zIndex: 9999 }}>
-          <div 
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-            onClick={() => setDeleteConfirmModal({ open: false, busId: null, boardCount: 0 })}
-          />
-          
-          <div className="relative w-full max-w-md bg-slate-900 border border-red-500/30 rounded-2xl shadow-2xl shadow-red-500/20" style={{ zIndex: 10000 }}>
-            <div className="bg-slate-900/95 backdrop-blur-sm border-b border-red-500/20 px-6 py-4">
-              <h3 className="text-xl font-bold text-slate-100 flex items-center gap-2">
-                <span className="text-2xl">⚠️</span>
-                Confirm Deletion
-              </h3>
-            </div>
-
-            <div className="p-6 space-y-4">
-              <div className="rounded-xl bg-red-500/10 border border-red-500/30 p-4">
-                <p className="text-slate-200 font-semibold mb-2">
-                  Delete {deleteConfirmModal.busId}?
-                </p>
-                {deleteConfirmModal.boardCount > 0 && (
-                  <p className="text-sm text-slate-300">
-                    This bus has <span className="font-bold text-red-400">{deleteConfirmModal.boardCount}</span> connected board(s).
-                  </p>
-                )}
-              </div>
-
-              <div className="rounded-xl bg-slate-800/30 border border-purple-500/20 p-4">
-                <p className="text-sm text-slate-300">
-                  <span className="font-semibold text-slate-200">Note:</span> Power configuration will be removed, but passenger data will remain intact.
-                </p>
-              </div>
-            </div>
-
-            <div className="bg-slate-900/95 backdrop-blur-sm border-t border-red-500/20 px-6 py-4 flex gap-3">
-              <button
-                onClick={() => setDeleteConfirmModal({ open: false, busId: null, boardCount: 0 })}
-                className="flex-1 px-4 py-3 bg-slate-800/50 border border-purple-500/30 text-slate-300 rounded-lg hover:bg-slate-700/50 transition-all font-medium"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={deleteBus}
-                disabled={deletingBusId !== null}
-                className="flex-1 px-4 py-3 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg shadow-lg shadow-red-500/50 hover:shadow-xl transition-all font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              >
-                {deletingBusId ? (
-                  <>
-                    <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    Deleting...
-                  </>
-                ) : (
-                  'Delete Bus'
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <DeleteConfirmModal
+        isOpen={deleteConfirmModal.open}
+        onClose={() => setDeleteConfirmModal({ open: false, busId: null, boardCount: 0 })}
+        onConfirm={deleteBus}
+        title="Confirm Deletion"
+        itemName={`Delete ${deleteConfirmModal.busId}?`}
+        warningMessage={deleteConfirmModal.boardCount > 0 ? `This bus has ${deleteConfirmModal.boardCount} connected board(s).` : null}
+        noteMessage="Power configuration will be removed, but passenger data will remain intact."
+        confirmButtonText="Delete Bus"
+        isDeleting={deletingBusId !== null}
+      />
 
       {/* Add Bus Modal */}
       {addBusModalOpen && (
         <div className="fixed inset-0 flex items-start justify-center p-4 pt-20 overflow-y-auto" style={{ zIndex: 9999 }}>
-          <div 
+          <div
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
             onClick={() => setAddBusModalOpen(false)}
           />
-          
+
           <div className="relative w-full max-w-md bg-slate-900 border border-purple-500/30 rounded-2xl shadow-2xl shadow-purple-500/20" style={{ zIndex: 10000 }}>
             <div className="sticky top-0 bg-slate-900/95 backdrop-blur-sm border-b border-purple-500/20 px-6 py-4 flex items-center justify-between">
               <h3 className="text-xl font-bold text-slate-100 flex items-center gap-2">
@@ -546,11 +503,10 @@ function PowerPage() {
                       <button
                         type="button"
                         onClick={() => handleFormChange(busId, 'deep_sleep_enabled', !form.deep_sleep_enabled)}
-                        className={`rounded-lg border px-4 py-2 text-sm font-semibold transition-all ${
-                          form.deep_sleep_enabled
-                            ? 'border-emerald-500/50 bg-emerald-500/20 text-emerald-300'
-                            : 'border-slate-700 bg-slate-800/50 text-slate-400'
-                        }`}
+                        className={`rounded-lg border px-4 py-2 text-sm font-semibold transition-all ${form.deep_sleep_enabled
+                          ? 'border-emerald-500/50 bg-emerald-500/20 text-emerald-300'
+                          : 'border-slate-700 bg-slate-800/50 text-slate-400'
+                          }`}
                       >
                         {form.deep_sleep_enabled ? '✓ Enabled' : '✗ Disabled'}
                       </button>
@@ -582,11 +538,10 @@ function PowerPage() {
                   <button
                     onClick={() => updateBusConfig(busId)}
                     disabled={savingBusId === busId}
-                    className={`mt-6 inline-flex w-full items-center justify-center gap-2 rounded-lg px-5 py-3 text-sm font-semibold text-white shadow-lg transition-all hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed ${
-                      hasUnsavedChanges(busId)
-                        ? 'bg-gradient-to-r from-orange-500 to-orange-600 shadow-orange-500/30 hover:shadow-orange-500/40 animate-pulse'
-                        : 'bg-gradient-to-r from-emerald-500 to-emerald-600 shadow-emerald-500/30 hover:shadow-emerald-500/40'
-                    }`}
+                    className={`mt-6 inline-flex w-full items-center justify-center gap-2 rounded-lg px-5 py-3 text-sm font-semibold text-white shadow-lg transition-all hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed ${hasUnsavedChanges(busId)
+                      ? 'bg-gradient-to-r from-orange-500 to-orange-600 shadow-orange-500/30 hover:shadow-orange-500/40 animate-pulse'
+                      : 'bg-gradient-to-r from-emerald-500 to-emerald-600 shadow-emerald-500/30 hover:shadow-emerald-500/40'
+                      }`}
                   >
                     {savingBusId === busId ? (
                       <>

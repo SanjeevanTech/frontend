@@ -2,9 +2,9 @@ import { useState, useEffect } from 'react'
 import axios from '../utils/axios'
 import BusSelector from '../components/BusSelector'
 import LoadingSpinner from '../components/LoadingSpinner'
+import DeleteConfirmModal from '../components/DeleteConfirmModal'
 import { API } from '../config/api'
 import { toast } from 'react-hot-toast'
-import DeleteConfirmModal from '../components/DeleteConfirmModal'
 
 function SchedulePage() {
   const [selectedBus, setSelectedBus] = useState(localStorage.getItem('selectedBus') || 'BUS_JC_001')
@@ -13,7 +13,6 @@ function SchedulePage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [editingIndex, setEditingIndex] = useState(null)
-  const [deleteConfirmModal, setDeleteConfirmModal] = useState({ open: false, tripIndex: null, tripName: '' })
   const [newTrip, setNewTrip] = useState({
     direction: '',
     boarding_start_time: '',
@@ -23,6 +22,8 @@ function SchedulePage() {
     route: '',
     active: true
   })
+  const [deleteModal, setDeleteModal] = useState({ open: false, tripIndex: null, tripName: '' })
+  const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
     fetchRoutes()
@@ -119,7 +120,7 @@ function SchedulePage() {
 
   const handleEditTrip = (index) => {
     const trip = schedule.trips[index]
-    
+
     // Try to find route_id if missing - match by route name
     let routeId = trip.route_id || ''
     if (!routeId && trip.route) {
@@ -128,7 +129,7 @@ function SchedulePage() {
         routeId = matchedRoute.route_id
       }
     }
-    
+
     setEditingIndex(index)
     setNewTrip({
       direction: trip.direction || '',
@@ -176,11 +177,11 @@ function SchedulePage() {
 
   const openRemoveConfirm = (index) => {
     const tripName = schedule.trips[index]?.trip_name || `Trip ${index + 1}`
-    setDeleteConfirmModal({ open: true, tripIndex: index, tripName })
+    setDeleteModal({ open: true, tripIndex: index, tripName })
   }
 
   const handleRemoveTrip = async () => {
-    const { tripIndex } = deleteConfirmModal
+    const { tripIndex } = deleteModal
     if (tripIndex === null) return
 
     const updatedSchedule = {
@@ -189,36 +190,35 @@ function SchedulePage() {
     }
 
     try {
-      setSaving(true)
-      
+      setDeleting(true)
+
       // Use PUT for update since schedule already exists
       if (updatedSchedule._id) {
         await axios.put(`${API.node.saveBusSchedule}/${updatedSchedule.bus_id}`, updatedSchedule)
       } else {
         await axios.post(API.node.saveBusSchedule, updatedSchedule)
       }
-      
+
       await axios.put(API.node.syncPowerConfig, { bus_id: updatedSchedule.bus_id })
       setSchedule(updatedSchedule)
-      
+
       if (editingIndex === tripIndex) {
         handleCancelEdit()
       }
-      
       toast.success('Trip removed and saved!')
-      setDeleteConfirmModal({ open: false, tripIndex: null, tripName: '' })
+      setDeleteModal({ open: false, tripIndex: null, tripName: '' })
     } catch (error) {
       console.error('Error removing trip:', error)
       toast.error('Failed to remove trip: ' + (error.response?.data?.error || error.message))
     } finally {
-      setSaving(false)
+      setDeleting(false)
     }
   }
 
   const handleSaveSchedule = async () => {
     try {
       setSaving(true)
-      
+
       // Use PUT if schedule exists (has _id), POST if creating new
       let response
       if (schedule._id) {
@@ -226,11 +226,11 @@ function SchedulePage() {
       } else {
         response = await axios.post(API.node.saveBusSchedule, schedule)
       }
-      
+
       const syncResult = await axios.put(API.node.syncPowerConfig, { bus_id: schedule.bus_id })
-      
+
       toast.success(`Schedule saved and synced!\n\nESP32 will wake at ${syncResult.data.trip_start} and sleep at ${syncResult.data.trip_end}`)
-      
+
       // Update local state instead of refetching
       if (response.data.schedule) {
         setSchedule(response.data.schedule)
@@ -253,18 +253,6 @@ function SchedulePage() {
 
   return (
     <div className="space-y-6">
-      {/* Delete Confirmation Modal */}
-      <DeleteConfirmModal
-        isOpen={deleteConfirmModal.open}
-        onClose={() => setDeleteConfirmModal({ open: false, tripIndex: null, tripName: '' })}
-        onConfirm={handleRemoveTrip}
-        title="Confirm Removal"
-        itemName={`Remove ${deleteConfirmModal.tripName}?`}
-        warningMessage="This will save immediately and remove the trip from the schedule."
-        confirmButtonText="Remove Trip"
-        isDeleting={saving}
-      />
-
       <header className="text-center">
         <h2 className="text-3xl font-bold text-slate-100 flex items-center justify-center gap-2">
           <span>📅</span>
@@ -273,7 +261,7 @@ function SchedulePage() {
         <p className="text-slate-400 mt-2">Configure multiple trips per day for each bus</p>
       </header>
 
-      <BusSelector 
+      <BusSelector
         selectedBus={selectedBus}
         onBusChange={handleBusChange}
         showAll={false}
@@ -284,9 +272,9 @@ function SchedulePage() {
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-slate-300 mb-2">Bus ID</label>
-            <input 
-              type="text" 
-              value={schedule.bus_id} 
+            <input
+              type="text"
+              value={schedule.bus_id}
               disabled
               className="w-full px-4 py-3 bg-slate-800/30 border border-slate-700 text-slate-400 rounded-lg cursor-not-allowed"
             />
@@ -312,14 +300,14 @@ function SchedulePage() {
                     <span className="text-lg font-semibold text-slate-100">{trip.trip_name}</span>
                   </div>
                   <div className="flex gap-2">
-                    <button 
+                    <button
                       className="px-3 py-1.5 bg-blue-500/20 text-blue-300 border border-blue-500/30 rounded-lg text-sm font-medium hover:bg-blue-500/30 transition-all"
                       onClick={() => handleEditTrip(index)}
                       disabled={editingIndex === index}
                     >
                       ✏️ Edit
                     </button>
-                    <button 
+                    <button
                       className="px-3 py-1.5 bg-red-500/20 text-red-300 border border-red-500/30 rounded-lg text-sm font-medium hover:bg-red-500/30 transition-all"
                       onClick={() => openRemoveConfirm(index)}
                     >
@@ -365,7 +353,7 @@ function SchedulePage() {
         {editingIndex !== null && (
           <div className="flex items-center justify-between mb-4 p-3 rounded-lg bg-blue-500/10 border border-blue-500/30">
             <span className="text-blue-300 font-medium">Editing Trip #{editingIndex + 1}</span>
-            <button 
+            <button
               className="px-3 py-1.5 bg-red-500/20 text-red-300 border border-red-500/30 rounded-lg text-sm font-medium hover:bg-red-500/30 transition-all"
               onClick={handleCancelEdit}
             >
@@ -389,8 +377,8 @@ function SchedulePage() {
               className="w-full px-4 py-3 bg-slate-800/50 border border-purple-500/30 text-slate-100 rounded-lg focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 transition-all cursor-pointer"
             >
               <option value="" className="bg-slate-900 text-slate-100">
-                {editingIndex !== null && !newTrip.route_id && newTrip.route 
-                  ? `${newTrip.route} (Please reselect)` 
+                {editingIndex !== null && !newTrip.route_id && newTrip.route
+                  ? `${newTrip.route} (Please reselect)`
                   : 'Select Route'}
               </option>
               {/* Show current route if editing and it's not in the active list */}
@@ -424,10 +412,10 @@ function SchedulePage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-2">Boarding Start Time</label>
-              <input 
+              <input
                 type="time"
                 value={newTrip.boarding_start_time}
-                onChange={(e) => setNewTrip({...newTrip, boarding_start_time: e.target.value})}
+                onChange={(e) => setNewTrip({ ...newTrip, boarding_start_time: e.target.value })}
                 className="w-full px-4 py-3 bg-slate-800/50 border border-purple-500/30 text-slate-100 rounded-lg focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 transition-all [color-scheme:dark]"
                 style={{ colorScheme: 'dark' }}
               />
@@ -436,10 +424,10 @@ function SchedulePage() {
 
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-2">Departure Time *</label>
-              <input 
+              <input
                 type="time"
                 value={newTrip.departure_time}
-                onChange={(e) => setNewTrip({...newTrip, departure_time: e.target.value})}
+                onChange={(e) => setNewTrip({ ...newTrip, departure_time: e.target.value })}
                 className="w-full px-4 py-3 bg-slate-800/50 border border-purple-500/30 text-slate-100 rounded-lg focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 transition-all [color-scheme:dark]"
                 style={{ colorScheme: 'dark' }}
               />
@@ -447,17 +435,17 @@ function SchedulePage() {
 
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-2">Arrival Time *</label>
-              <input 
+              <input
                 type="time"
                 value={newTrip.estimated_arrival_time}
-                onChange={(e) => setNewTrip({...newTrip, estimated_arrival_time: e.target.value})}
+                onChange={(e) => setNewTrip({ ...newTrip, estimated_arrival_time: e.target.value })}
                 className="w-full px-4 py-3 bg-slate-800/50 border border-purple-500/30 text-slate-100 rounded-lg focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 transition-all [color-scheme:dark]"
                 style={{ colorScheme: 'dark' }}
               />
             </div>
           </div>
 
-          <button 
+          <button
             className="w-full px-6 py-4 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold rounded-lg shadow-lg shadow-purple-500/50 hover:shadow-xl transition-all"
             onClick={handleAddTrip}
           >
@@ -467,7 +455,7 @@ function SchedulePage() {
       </div>
 
       <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-6">
-        <button 
+        <button
           className="w-full px-6 py-4 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-bold rounded-lg shadow-lg shadow-emerald-500/30 hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           onClick={handleSaveSchedule}
           disabled={saving}
@@ -500,6 +488,19 @@ function SchedulePage() {
           </ul>
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmModal
+        isOpen={deleteModal.open}
+        onClose={() => setDeleteModal({ open: false, tripIndex: null, tripName: '' })}
+        onConfirm={handleRemoveTrip}
+        title="Remove Trip"
+        itemName={`Remove ${deleteModal.tripName}?`}
+        warningMessage="This will save immediately."
+        noteMessage="The trip will be removed from the schedule and ESP32 power config will be synced."
+        confirmButtonText="Remove"
+        isDeleting={deleting}
+      />
     </div>
   )
 }

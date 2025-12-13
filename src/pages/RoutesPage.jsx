@@ -14,7 +14,7 @@ function RoutesPage() {
   const [useWaypointGroups, setUseWaypointGroups] = useState(true)
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
-  const [deleteConfirmModal, setDeleteConfirmModal] = useState({ open: false, routeId: null, routeName: '', stopCount: 0 })
+  const [deleteModal, setDeleteModal] = useState({ open: false, routeId: null, routeName: '' })
   const [formData, setFormData] = useState({
     route_name: '',
     description: '',
@@ -126,7 +126,7 @@ function RoutesPage() {
     }
 
     setSaving(true)
-    
+
     try {
       const payload = {
         ...formData,
@@ -151,15 +151,15 @@ function RoutesPage() {
       if (editingRoute) {
         const response = await axios.put(`/api/bus-routes/${editingRoute.route_id}`, payload)
         toast.success('Route updated successfully!')
-        
+
         // Update local state instead of refetching
-        setRoutes(prev => prev.map(route => 
+        setRoutes(prev => prev.map(route =>
           route.route_id === editingRoute.route_id ? { ...route, ...response.data.route } : route
         ))
       } else {
         const response = await axios.post('/api/bus-routes', payload)
         toast.success('Route created successfully!')
-        
+
         // Add to local state instead of refetching
         setRoutes(prev => [...prev, response.data.route])
       }
@@ -215,7 +215,7 @@ function RoutesPage() {
       estimated_duration_hours: route.estimated_duration_hours || 0
     })
     setSelectedBuses(route.assigned_buses || [])
-    
+
     if (route.waypoint_groups && route.waypoint_groups.length > 0) {
       setUseWaypointGroups(true)
       setSelectedGroups(route.waypoint_groups.map(wg => wg.group_id))
@@ -223,30 +223,28 @@ function RoutesPage() {
       setUseWaypointGroups(false)
       setStops(route.stops || [])
     }
-    
+
     setShowAddForm(true)
   }
 
-  const openDeleteConfirm = (route_id, route_name, stopCount) => {
-    setDeleteConfirmModal({ open: true, routeId: route_id, routeName: route_name, stopCount })
+  const openDeleteConfirm = (route_id, route_name) => {
+    setDeleteModal({ open: true, routeId: route_id, routeName: route_name })
   }
 
-  const deleteRoute = async () => {
-    const { routeId } = deleteConfirmModal
+  const handleDeleteConfirm = async () => {
+    const { routeId } = deleteModal
     if (!routeId) return
 
     setDeleting(true)
-    
     try {
       await axios.delete(`/api/bus-routes/${routeId}`)
-      
+      toast.success('Route deleted successfully!')
+
       // Update local state instead of refetching
-      setRoutes(prev => prev.map(route => 
+      setRoutes(prev => prev.map(route =>
         route.route_id === routeId ? { ...route, is_active: false } : route
       ))
-      
-      toast.success('Route deleted successfully!')
-      setDeleteConfirmModal({ open: false, routeId: null, routeName: '', stopCount: 0 })
+      setDeleteModal({ open: false, routeId: null, routeName: '' })
     } catch (error) {
       console.error('Error deleting route:', error)
       toast.error('Failed to delete route')
@@ -259,9 +257,9 @@ function RoutesPage() {
     try {
       await axios.put(`/api/bus-routes/${route_id}`, { is_active: true })
       toast.success('Route reactivated successfully!')
-      
+
       // Update local state instead of refetching
-      setRoutes(prev => prev.map(route => 
+      setRoutes(prev => prev.map(route =>
         route.route_id === route_id ? { ...route, is_active: true } : route
       ))
     } catch (error) {
@@ -280,19 +278,6 @@ function RoutesPage() {
 
   return (
     <div className="space-y-6">
-      {/* Delete Confirmation Modal */}
-      <DeleteConfirmModal
-        isOpen={deleteConfirmModal.open}
-        onClose={() => setDeleteConfirmModal({ open: false, routeId: null, routeName: '', stopCount: 0 })}
-        onConfirm={deleteRoute}
-        title="Confirm Deletion"
-        itemName={`Delete "${deleteConfirmModal.routeName}"?`}
-        warningMessage={deleteConfirmModal.stopCount > 0 ? `This route has ${deleteConfirmModal.stopCount} stop(s).` : undefined}
-        noteMessage="This will mark the route as inactive. You can reactivate it later if needed."
-        confirmButtonText="Delete Route"
-        isDeleting={deleting}
-      />
-
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -316,11 +301,11 @@ function RoutesPage() {
       {/* Bus Selection Modal */}
       {busModalOpen && (
         <div className="fixed inset-0 flex items-start justify-center p-4 pt-20 overflow-y-auto" style={{ zIndex: 9999 }}>
-          <div 
+          <div
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
             onClick={() => setBusModalOpen(false)}
           />
-          
+
           <div className="relative w-full max-w-md bg-slate-900 border border-purple-500/30 rounded-2xl shadow-2xl shadow-purple-500/20" style={{ zIndex: 10000 }}>
             <div className="sticky top-0 bg-slate-900/95 backdrop-blur-sm border-b border-purple-500/20 px-6 py-4 flex items-center justify-between">
               <h3 className="text-xl font-bold text-slate-100 flex items-center gap-2">
@@ -360,11 +345,10 @@ function RoutesPage() {
                   filteredBuses.map(bus => (
                     <label
                       key={bus}
-                      className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all ${
-                        selectedBuses.includes(bus)
-                          ? 'bg-purple-500/20 border border-purple-500/50'
-                          : 'bg-slate-800/30 border border-purple-500/20 hover:border-purple-500/40'
-                      }`}
+                      className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all ${selectedBuses.includes(bus)
+                        ? 'bg-purple-500/20 border border-purple-500/50'
+                        : 'bg-slate-800/30 border border-purple-500/20 hover:border-purple-500/40'
+                        }`}
                     >
                       <input
                         type="checkbox"
@@ -412,7 +396,7 @@ function RoutesPage() {
             {/* Route Information */}
             <div className="space-y-4">
               <h3 className="text-lg font-semibold text-slate-200">Route Information</h3>
-              
+
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-2">Route Name *</label>
                 <input
@@ -524,18 +508,17 @@ function RoutesPage() {
                       <div
                         key={group.group_id}
                         onClick={() => toggleGroupSelection(group.group_id)}
-                        className={`p-4 rounded-lg border cursor-pointer transition-all ${
-                          selectedGroups.includes(group.group_id)
-                            ? 'bg-emerald-500/20 border-emerald-500/50'
-                            : 'bg-slate-900/50 border-purple-500/20 hover:border-purple-500/40'
-                        }`}
+                        className={`p-4 rounded-lg border cursor-pointer transition-all ${selectedGroups.includes(group.group_id)
+                          ? 'bg-emerald-500/20 border-emerald-500/50'
+                          : 'bg-slate-900/50 border-purple-500/20 hover:border-purple-500/40'
+                          }`}
                       >
                         <div className="flex items-center justify-between mb-2">
                           <div className="flex items-center gap-3">
                             <input
                               type="checkbox"
                               checked={selectedGroups.includes(group.group_id)}
-                              onChange={() => {}}
+                              onChange={() => { }}
                               className="w-4 h-4"
                             />
                             <strong className="text-slate-100">{group.group_name}</strong>
@@ -705,21 +688,19 @@ function RoutesPage() {
           {routes.map((route) => (
             <div
               key={route.route_id}
-              className={`rounded-2xl border p-6 shadow-lg hover:shadow-xl transition-all ${
-                route.is_active
-                  ? 'border-purple-500/20 bg-slate-800/30'
-                  : 'border-slate-700/50 bg-slate-900/20 opacity-60'
-              }`}
+              className={`rounded-2xl border p-6 shadow-lg hover:shadow-xl transition-all ${route.is_active
+                ? 'border-purple-500/20 bg-slate-800/30'
+                : 'border-slate-700/50 bg-slate-900/20 opacity-60'
+                }`}
             >
               {/* Header */}
               <div className="flex items-start justify-between mb-4">
                 <h3 className="text-xl font-bold text-slate-100">{route.route_name}</h3>
                 <span
-                  className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                    route.is_active
-                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                      : 'bg-slate-700/50 text-slate-400 border border-slate-600'
-                  }`}
+                  className={`px-3 py-1 rounded-full text-xs font-semibold ${route.is_active
+                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                    : 'bg-slate-700/50 text-slate-400 border border-slate-600'
+                    }`}
                 >
                   {route.is_active ? '✓ ACTIVE' : '⏸ INACTIVE'}
                 </span>
@@ -806,7 +787,7 @@ function RoutesPage() {
                 </button>
                 {route.is_active ? (
                   <button
-                    onClick={() => openDeleteConfirm(route.route_id, route.route_name, route.stops?.length || 0)}
+                    onClick={() => openDeleteConfirm(route.route_id, route.route_name)}
                     className="flex-1 px-4 py-2 bg-red-500/20 text-red-300 rounded-lg hover:bg-red-500/30 transition-all font-medium text-sm border border-red-500/30"
                   >
                     🗑️ Delete
@@ -824,8 +805,22 @@ function RoutesPage() {
           ))}
         </div>
       )}
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmModal
+        isOpen={deleteModal.open}
+        onClose={() => setDeleteModal({ open: false, routeId: null, routeName: '' })}
+        onConfirm={handleDeleteConfirm}
+        title="Delete Route"
+        itemName={`Delete "${deleteModal.routeName}"?`}
+        warningMessage="This will mark the route as inactive."
+        noteMessage="Bus schedules using this route will still function but may need to be updated."
+        confirmButtonText="Delete"
+        isDeleting={deleting}
+      />
     </div>
   )
 }
 
 export default RoutesPage
+

@@ -14,12 +14,12 @@ function WaypointsPage() {
   const [editingGroup, setEditingGroup] = useState(null)
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
-  const [deleteConfirmModal, setDeleteConfirmModal] = useState({ open: false, groupId: null, groupName: '', waypointCount: 0 })
-  
+  const [deleteModal, setDeleteModal] = useState({ open: false, groupId: null, groupName: '' })
+
   const [formData, setFormData] = useState({
     group_name: ''
   })
-  
+
   const [waypoints, setWaypoints] = useState([
     { name: '', latitude: '', longitude: '', order: 1 }
   ])
@@ -75,7 +75,7 @@ function WaypointsPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    
+
     if (waypoints.length < 2) {
       toast.error('Waypoint group must have at least 2 waypoints')
       return
@@ -89,7 +89,7 @@ function WaypointsPage() {
     }
 
     setSaving(true)
-    
+
     try {
       const payload = {
         ...formData,
@@ -103,15 +103,15 @@ function WaypointsPage() {
       if (editingGroup) {
         const response = await axios.put(`${API_BASE}/waypoint-groups/${editingGroup.group_id}`, payload)
         toast.success('Waypoint group updated successfully!')
-        
+
         // Update local state instead of refetching
-        setGroups(prev => prev.map(group => 
+        setGroups(prev => prev.map(group =>
           group.group_id === editingGroup.group_id ? { ...group, ...response.data.group } : group
         ))
       } else {
         const response = await axios.post(`${API_BASE}/waypoint-groups`, payload)
         toast.success('Waypoint group created successfully!')
-        
+
         // Add to local state instead of refetching
         setGroups(prev => [...prev, response.data.group])
       }
@@ -151,26 +151,23 @@ function WaypointsPage() {
   const openDeleteConfirm = (group_id) => {
     const group = groups.find(g => g.group_id === group_id)
     const groupName = group?.group_name || 'this waypoint group'
-    const waypointCount = group?.waypoints?.length || 0
-    setDeleteConfirmModal({ open: true, groupId: group_id, groupName, waypointCount })
+    setDeleteModal({ open: true, groupId: group_id, groupName })
   }
 
-  const deleteGroup = async () => {
-    const { groupId } = deleteConfirmModal
+  const handleDeleteConfirm = async () => {
+    const { groupId } = deleteModal
     if (!groupId) return
 
     setDeleting(true)
-    
     try {
       await axios.delete(`${API_BASE}/waypoint-groups/${groupId}`)
-      
+      toast.success('Waypoint group deleted successfully!')
+
       // Update local state instead of refetching
-      setGroups(prev => prev.map(group => 
+      setGroups(prev => prev.map(group =>
         group.group_id === groupId ? { ...group, is_active: false } : group
       ))
-      
-      toast.success('Waypoint group deleted successfully!')
-      setDeleteConfirmModal({ open: false, groupId: null, groupName: '', waypointCount: 0 })
+      setDeleteModal({ open: false, groupId: null, groupName: '' })
     } catch (error) {
       console.error('Error deleting waypoint group:', error)
       toast.error('Failed to delete waypoint group')
@@ -189,26 +186,13 @@ function WaypointsPage() {
 
   return (
     <div className="space-y-6">
-      {/* Delete Confirmation Modal */}
-      <DeleteConfirmModal
-        isOpen={deleteConfirmModal.open}
-        onClose={() => setDeleteConfirmModal({ open: false, groupId: null, groupName: '', waypointCount: 0 })}
-        onConfirm={deleteGroup}
-        title="Confirm Deletion"
-        itemName={`Delete ${deleteConfirmModal.groupName}?`}
-        warningMessage={deleteConfirmModal.waypointCount > 0 ? `This group has ${deleteConfirmModal.waypointCount} waypoint(s).` : undefined}
-        noteMessage="This will mark the waypoint group as inactive. You can reactivate it later if needed."
-        confirmButtonText="Delete Group"
-        isDeleting={deleting}
-      />
-
       <header className="text-center">
         <h1 className="text-3xl font-bold text-slate-100 flex items-center justify-center gap-2">
           <span>📍</span>
           Waypoint Group Management
         </h1>
         <p className="text-slate-400 mt-2">Create reusable waypoint sequences for your bus routes</p>
-        <button 
+        <button
           onClick={() => {
             resetForm()
             setShowAddForm(!showAddForm)
@@ -224,11 +208,11 @@ function WaypointsPage() {
           <h2 className="text-2xl font-bold text-slate-100 mb-6">
             {editingGroup ? '✏️ Edit Waypoint Group' : '➕ Add New Waypoint Group'}
           </h2>
-          
+
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="rounded-xl border border-purple-500/20 bg-slate-800/30 p-4">
               <h3 className="font-bold text-slate-200 mb-4">Group Information</h3>
-              
+
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-2">Group Name *</label>
                 <input
@@ -246,9 +230,9 @@ function WaypointsPage() {
             <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-bold text-slate-200">Waypoints ({waypoints.length})</h3>
-                <button 
-                  type="button" 
-                  onClick={addWaypoint} 
+                <button
+                  type="button"
+                  onClick={addWaypoint}
                   className="px-4 py-2 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white text-sm font-semibold rounded-lg shadow-lg shadow-emerald-500/30 hover:shadow-xl transition-all whitespace-nowrap"
                 >
                   ➕ Add
@@ -261,7 +245,7 @@ function WaypointsPage() {
                     <div className="flex-shrink-0 w-8 h-8 bg-purple-500/20 text-purple-300 border border-purple-500/30 rounded-full flex items-center justify-center font-bold text-sm">
                       {index + 1}
                     </div>
-                    
+
                     <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-2">
                       <input
                         type="text"
@@ -271,7 +255,7 @@ function WaypointsPage() {
                         required
                         className="px-3 py-2 bg-slate-800/50 border border-purple-500/30 text-slate-100 rounded-lg text-sm focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 transition-all placeholder:text-slate-500"
                       />
-                      
+
                       <input
                         type="number"
                         placeholder="Latitude *"
@@ -281,7 +265,7 @@ function WaypointsPage() {
                         required
                         className="px-3 py-2 bg-slate-800/50 border border-purple-500/30 text-slate-100 rounded-lg text-sm focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 transition-all placeholder:text-slate-500"
                       />
-                      
+
                       <input
                         type="number"
                         placeholder="Longitude *"
@@ -316,7 +300,7 @@ function WaypointsPage() {
             </div>
 
             <div className="flex gap-3">
-              <button 
+              <button
                 type="submit"
                 disabled={saving}
                 className="flex-1 px-6 py-4 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold rounded-lg shadow-lg shadow-purple-500/50 hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
@@ -333,8 +317,8 @@ function WaypointsPage() {
                   <>💾 {editingGroup ? 'Update' : 'Create'}</>
                 )}
               </button>
-              <button 
-                type="button" 
+              <button
+                type="button"
                 onClick={() => {
                   resetForm()
                   setShowAddForm(false)
@@ -352,7 +336,7 @@ function WaypointsPage() {
         <h2 className="text-2xl font-bold text-slate-100 mb-6">
           Waypoint Groups ({groups.length})
         </h2>
-        
+
         {groups.length === 0 ? (
           <div className="text-center py-12 rounded-xl border border-dashed border-purple-500/30 bg-slate-800/30">
             <div className="text-5xl mb-3">📍</div>
@@ -361,13 +345,12 @@ function WaypointsPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {groups.map(group => (
-              <div 
-                key={group.group_id} 
-                className={`rounded-xl border p-4 transition-all hover:shadow-lg hover:shadow-purple-500/10 ${
-                  !group.is_active 
-                    ? 'opacity-50 border-slate-700 bg-slate-800/30' 
-                    : 'border-purple-500/30 bg-slate-800/50'
-                }`}
+              <div
+                key={group.group_id}
+                className={`rounded-xl border p-4 transition-all hover:shadow-lg hover:shadow-purple-500/10 ${!group.is_active
+                  ? 'opacity-50 border-slate-700 bg-slate-800/30'
+                  : 'border-purple-500/30 bg-slate-800/50'
+                  }`}
               >
                 <div className="flex items-start justify-between mb-3">
                   <h3 className="font-bold text-slate-100 text-lg break-words flex-1 min-w-0">
@@ -392,14 +375,14 @@ function WaypointsPage() {
                 </div>
 
                 <div className="flex gap-2">
-                  <button 
-                    onClick={() => editGroup(group)} 
+                  <button
+                    onClick={() => editGroup(group)}
                     className="flex-1 px-3 py-2 text-sm bg-blue-500/20 text-blue-300 border border-blue-500/30 rounded-lg font-medium hover:bg-blue-500/30 transition-all"
                   >
                     ✏️ Edit
                   </button>
-                  <button 
-                    onClick={() => openDeleteConfirm(group.group_id)} 
+                  <button
+                    onClick={() => openDeleteConfirm(group.group_id)}
                     className="flex-1 px-3 py-2 text-sm bg-red-500/20 text-red-300 border border-red-500/30 rounded-lg font-medium hover:bg-red-500/30 transition-all"
                   >
                     🗑️ Delete
@@ -410,8 +393,22 @@ function WaypointsPage() {
           </div>
         )}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmModal
+        isOpen={deleteModal.open}
+        onClose={() => setDeleteModal({ open: false, groupId: null, groupName: '' })}
+        onConfirm={handleDeleteConfirm}
+        title="Delete Waypoint Group"
+        itemName={`Delete "${deleteModal.groupName}"?`}
+        warningMessage="This will mark the waypoint group as inactive."
+        noteMessage="Routes using this waypoint group will not be affected."
+        confirmButtonText="Delete"
+        isDeleting={deleting}
+      />
     </div>
   )
 }
 
 export default WaypointsPage
+
