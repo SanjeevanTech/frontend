@@ -50,7 +50,12 @@ function UnmatchedPage() {
 
       if (filterType !== 'ALL') params.append('type', filterType)
       if (selectedBus !== 'ALL') params.append('bus_id', selectedBus)
-      if (selectedTrip !== 'ALL') params.append('trip_id', selectedTrip)
+      if (selectedTrip !== 'ALL') {
+        params.append('trip_id', selectedTrip)
+        console.log('🔍 Fetching unmatched for trip:', selectedTrip)
+      }
+
+      console.log('📡 API Request:', `/api/unmatched?${params}`)
 
       const response = await axios.get(`/api/unmatched?${params}`)
       setUnmatched(response.data.unmatched || [])
@@ -62,6 +67,27 @@ function UnmatchedPage() {
       setLoading(false)
     }
   }
+
+  const fetchAvailableTrips = async () => {
+    try {
+      const dateStr = format(selectedDate, 'yyyy-MM-dd')
+      const params = new URLSearchParams({ date: dateStr })
+
+      if (selectedBus !== 'ALL') params.append('bus_id', selectedBus)
+
+      const response = await axios.get(`/api/trips?${params}`)
+      const trips = response.data.trips || []
+
+      setAvailableTrips(trips)
+    } catch (err) {
+      console.error('Error fetching available trips:', err)
+      setAvailableTrips([])
+    }
+  }
+
+  useEffect(() => {
+    fetchAvailableTrips()
+  }, [selectedDate, selectedBus])
 
   const handlePageChange = (newPage) => {
     setCurrentPage(newPage)
@@ -152,7 +178,7 @@ function UnmatchedPage() {
             <label className="text-sm font-semibold text-slate-300 block">
               Select Bus
             </label>
-            <BusSelector 
+            <BusSelector
               selectedBus={selectedBus}
               onBusChange={handleBusChange}
               showAll={true}
@@ -190,10 +216,27 @@ function UnmatchedPage() {
               </option>
               {availableTrips && availableTrips.map((trip, index) => {
                 const tripId = typeof trip === 'string' ? trip : trip.trip_id
-                const boardingTime = typeof trip === 'object' && trip.start_time
-                  ? format(new Date(trip.start_time), 'HH:mm')
+                // Use boarding_start_time or departure_time directly instead of start_time to avoid timezone issues
+                const boardingTime = typeof trip === 'object'
+                  ? (trip.boarding_start_time || trip.departure_time || '')
                   : ''
-                const displayName = boardingTime ? `${tripId} (${boardingTime})` : tripId
+                // Get end time from end_time or estimated_arrival_time
+                const endTime = typeof trip === 'object'
+                  ? (trip.end_time || trip.estimated_arrival_time || '')
+                  : ''
+
+                // Extract trip number from trip_id (e.g., "SCHEDULED_BUS_JC_001_2025-11-24_0" -> "Trip 1")
+                const tripMatch = tripId.match(/_(\d+)$/)
+                const tripNumber = tripMatch ? parseInt(tripMatch[1]) + 1 : index + 1
+
+                // Create display name with both start and end times
+                let displayName = `Trip ${tripNumber}`
+                if (boardingTime && endTime) {
+                  displayName = `Trip ${tripNumber} - ${boardingTime} → ${endTime}`
+                } else if (boardingTime) {
+                  displayName = `Trip ${tripNumber} - ${boardingTime}`
+                }
+
                 return (
                   <option key={`${tripId}_${index}`} value={tripId} className="bg-slate-900 text-slate-100">
                     {displayName}
@@ -224,11 +267,11 @@ function UnmatchedPage() {
       {/* Filter Modal */}
       {filterModalOpen && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div 
+          <div
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
             onClick={() => setFilterModalOpen(false)}
           />
-          
+
           <div className="relative w-full sm:max-w-lg bg-slate-900 border border-purple-500/30 rounded-t-3xl sm:rounded-2xl shadow-2xl shadow-purple-500/20 max-h-[90vh] overflow-y-auto">
             <div className="sticky top-0 bg-slate-900/95 backdrop-blur-sm border-b border-purple-500/20 px-6 py-4 flex items-center justify-between">
               <h3 className="text-xl font-bold text-slate-100 flex items-center gap-2">
@@ -253,7 +296,7 @@ function UnmatchedPage() {
                   <span className="text-lg">🚌</span>
                   Select Bus
                 </label>
-                <BusSelector 
+                <BusSelector
                   selectedBus={tempFilters.bus}
                   onBusChange={(bus) => setTempFilters(prev => ({ ...prev, bus }))}
                   showAll={true}
@@ -290,9 +333,30 @@ function UnmatchedPage() {
                     <option value="ALL" className="bg-slate-900 text-slate-100">All trips ({availableTrips.length})</option>
                     {availableTrips.map((trip, index) => {
                       const tripId = typeof trip === 'string' ? trip : trip.trip_id
+                      // Use boarding_start_time or departure_time directly instead of start_time to avoid timezone issues
+                      const boardingTime = typeof trip === 'object'
+                        ? (trip.boarding_start_time || trip.departure_time || '')
+                        : ''
+                      // Get end time from end_time or estimated_arrival_time
+                      const endTime = typeof trip === 'object'
+                        ? (trip.end_time || trip.estimated_arrival_time || '')
+                        : ''
+
+                      // Extract trip number from trip_id
+                      const tripMatch = tripId.match(/_(\d+)$/)
+                      const tripNumber = tripMatch ? parseInt(tripMatch[1]) + 1 : index + 1
+
+                      // Create display name with both start and end times
+                      let displayName = `Trip ${tripNumber}`
+                      if (boardingTime && endTime) {
+                        displayName = `Trip ${tripNumber} - ${boardingTime} → ${endTime}`
+                      } else if (boardingTime) {
+                        displayName = `Trip ${tripNumber} - ${boardingTime}`
+                      }
+
                       return (
                         <option key={`${tripId}_${index}`} value={tripId} className="bg-slate-900 text-slate-100">
-                          {tripId}
+                          {displayName}
                         </option>
                       )
                     })}
@@ -353,11 +417,10 @@ function UnmatchedPage() {
               <button
                 key={filter.id}
                 onClick={() => setFilterType(filter.id)}
-                className={`rounded-lg px-4 py-2 text-sm font-medium transition-all ${
-                  filterType === filter.id
+                className={`rounded-lg px-4 py-2 text-sm font-medium transition-all ${filterType === filter.id
                     ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/30'
                     : 'border border-slate-700 bg-slate-900/80 text-slate-200 hover:bg-slate-800'
-                }`}
+                  }`}
               >
                 {filter.label}
               </button>
@@ -392,11 +455,10 @@ function UnmatchedPage() {
                         <td className="px-4 py-3 font-semibold text-indigo-300">{item.bus_id || 'N/A'}</td>
                         <td className="px-4 py-3">
                           <span
-                            className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                              item.type === 'ENTRY'
+                            className={`rounded-full px-3 py-1 text-xs font-semibold ${item.type === 'ENTRY'
                                 ? 'bg-sky-500/20 text-sky-200'
                                 : 'bg-rose-500/20 text-rose-200'
-                            }`}
+                              }`}
                           >
                             {item.type}
                           </span>

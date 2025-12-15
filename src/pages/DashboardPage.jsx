@@ -25,7 +25,7 @@ function DashboardPage({ user, setUser }) {
 
   useEffect(() => {
     if (!user) return
-    
+
     const fetchUnmatchedCount = async () => {
       try {
         const dateStr = format(new Date(), 'yyyy-MM-dd')
@@ -35,7 +35,7 @@ function DashboardPage({ user, setUser }) {
         console.error('Error fetching unmatched count:', err)
       }
     }
-    
+
     fetchUnmatchedCount()
     const interval = setInterval(fetchUnmatchedCount, 60000)
     return () => clearInterval(interval)
@@ -118,16 +118,15 @@ function DashboardPage({ user, setUser }) {
           </div>
 
           {/* Desktop Navigation */}
-          <nav className="hidden lg:flex gap-2 pb-4 overflow-x-auto">
+          <nav className="hidden lg:flex gap-2 pt-2 pb-4 overflow-x-auto">
             {navItems.map((item) => (
               <button
                 key={item.id}
                 onClick={() => handleNavClick(item.id)}
-                className={`relative px-4 py-2.5 rounded-lg font-medium text-sm transition-all duration-200 whitespace-nowrap ${
-                  activeView === item.id
+                className={`relative px-4 py-2.5 rounded-lg font-medium text-sm transition-all duration-200 whitespace-nowrap ${activeView === item.id
                     ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg shadow-purple-500/50'
                     : 'bg-slate-800/50 text-slate-300 hover:bg-slate-700/50 hover:text-white'
-                }`}
+                  }`}
               >
                 <span className="mr-2">{item.icon}</span>
                 {item.label}
@@ -149,11 +148,10 @@ function DashboardPage({ user, setUser }) {
                 <button
                   key={item.id}
                   onClick={() => handleNavClick(item.id)}
-                  className={`w-full flex items-center justify-between px-4 py-3 rounded-lg font-medium text-sm transition-all ${
-                    activeView === item.id
+                  className={`w-full flex items-center justify-between px-4 py-3 rounded-lg font-medium text-sm transition-all ${activeView === item.id
                       ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg'
                       : 'bg-slate-800/50 text-slate-300 hover:bg-slate-700/50'
-                  }`}
+                    }`}
                 >
                   <span className="flex items-center gap-3">
                     <span className="text-xl">{item.icon}</span>
