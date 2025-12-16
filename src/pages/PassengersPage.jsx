@@ -600,7 +600,7 @@ function PassengersPage() {
                         onClick={() => openInGoogleMaps(passenger.entryLocation)}
                         title="Open in Google Maps"
                       >
-                        <div className="font-medium text-indigo-300">
+                        <div className="font-medium text-indigo-300 truncate max-w-[140px] sm:max-w-[200px]">
                           {passenger.entryLocation?.location_name || locationNames[`entry-${index}`] || 'Locating…'}
                         </div>
                         <div className="text-xs text-slate-500">{formatLocation(passenger.entryLocation)}</div>
@@ -613,7 +613,7 @@ function PassengersPage() {
                         onClick={() => openInGoogleMaps(passenger.exitLocation)}
                         title="Open in Google Maps"
                       >
-                        <div className="font-medium text-indigo-300">
+                        <div className="font-medium text-indigo-300 truncate max-w-[140px] sm:max-w-[200px]">
                           {passenger.exitLocation?.location_name || locationNames[`exit-${index}`] || 'Locating…'}
                         </div>
                         <div className="text-xs text-slate-500">{formatLocation(passenger.exitLocation)}</div>
@@ -635,10 +635,10 @@ function PassengersPage() {
                     <td className="px-4 py-3">
                       <span
                         className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${passenger.similarity_score > 0.9
-                            ? 'bg-emerald-500/10 text-emerald-300'
-                            : passenger.similarity_score > 0.8
-                              ? 'bg-amber-500/10 text-amber-300'
-                              : 'bg-rose-500/10 text-rose-300'
+                          ? 'bg-emerald-500/10 text-emerald-300'
+                          : passenger.similarity_score > 0.8
+                            ? 'bg-amber-500/10 text-amber-300'
+                            : 'bg-rose-500/10 text-rose-300'
                           }`}
                       >
                         {(passenger.similarity_score * 100).toFixed(1)}%

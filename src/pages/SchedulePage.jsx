@@ -266,6 +266,7 @@ function SchedulePage() {
         onBusChange={handleBusChange}
         showAll={false}
         label="Managing Schedule for:"
+        validateSelection={true}
       />
 
       <div className="rounded-2xl border border-purple-500/30 bg-slate-900/80 p-6 shadow-lg shadow-purple-500/10">
@@ -293,11 +294,11 @@ function SchedulePage() {
             {schedule.trips.map((trip, index) => (
               <div key={index} className="rounded-xl border border-purple-500/30 bg-slate-800/50 p-4">
                 <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-3">
-                    <span className="px-3 py-1 bg-purple-500/20 text-purple-300 border border-purple-500/30 rounded-full text-sm font-bold">
+                  <div className="flex items-center gap-3 min-w-0 flex-1 mr-2">
+                    <span className="flex-shrink-0 px-3 py-1 bg-purple-500/20 text-purple-300 border border-purple-500/30 rounded-full text-sm font-bold">
                       #{index + 1}
                     </span>
-                    <span className="text-lg font-semibold text-slate-100">{trip.trip_name}</span>
+                    <span className="text-lg font-semibold text-slate-100 truncate">{trip.trip_name}</span>
                   </div>
                   <div className="flex gap-2">
                     <button

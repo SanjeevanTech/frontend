@@ -695,9 +695,9 @@ function RoutesPage() {
             >
               {/* Header */}
               <div className="flex items-start justify-between mb-4">
-                <h3 className="text-xl font-bold text-slate-100">{route.route_name}</h3>
+                <h3 className="text-xl font-bold text-slate-100 flex-1 pr-2 break-words">{route.route_name}</h3>
                 <span
-                  className={`px-3 py-1 rounded-full text-xs font-semibold ${route.is_active
+                  className={`flex-shrink-0 px-3 py-1 rounded-full text-xs font-semibold ${route.is_active
                     ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
                     : 'bg-slate-700/50 text-slate-400 border border-slate-600'
                     }`}

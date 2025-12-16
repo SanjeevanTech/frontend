@@ -258,14 +258,14 @@ function PowerPage() {
     const timeDiff = board?.last_seen ? formatRelative(board.last_seen) : 'Never'
 
     return (
-      <div key={board.device_id} className="flex items-center justify-between rounded-xl border border-purple-500/20 bg-slate-900/50 p-3">
-        <div>
-          <p className="text-sm font-semibold text-slate-200">{board.device_id || 'Unknown device'}</p>
-          <p className="text-xs text-slate-500">
+      <div key={board.device_id} className="flex items-center justify-between gap-3 rounded-xl border border-purple-500/20 bg-slate-900/50 p-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-slate-200 truncate">{board.device_id || 'Unknown device'}</p>
+          <p className="text-xs text-slate-500 truncate">
             {board.location || 'Unknown'} · {board.ip_address || 'No IP'} · {timeDiff}
           </p>
         </div>
-        <span className={`rounded-full px-3 py-1 text-xs font-semibold ${online ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-slate-700/50 text-slate-400 border border-slate-600'
+        <span className={`flex-shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${online ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-slate-700/50 text-slate-400 border border-slate-600'
           }`}
         >
           {online ? '● Online' : '○ Offline'}

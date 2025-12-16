@@ -3,7 +3,7 @@ import axios from '../utils/axios'
 import { API } from '../config/api'
 import LoadingSpinner from './LoadingSpinner'
 
-function BusSelector({ selectedBus, onBusChange, showAll = true, label = 'Filter by bus' }) {
+function BusSelector({ selectedBus, onBusChange, showAll = true, label = 'Filter by bus', validateSelection = false }) {
   const [buses, setBuses] = useState([])
   const [loading, setLoading] = useState(true)
 
@@ -17,7 +17,12 @@ function BusSelector({ selectedBus, onBusChange, showAll = true, label = 'Filter
       const busIds = Object.keys(response.data)
       setBuses(busIds)
 
-      if (!selectedBus && busIds.length > 0 && !showAll) {
+      // Validation logic: specific for when a bus might have been deleted
+      if (validateSelection && busIds.length > 0 && selectedBus && selectedBus !== 'ALL' && !busIds.includes(selectedBus)) {
+        console.warn(`Selected bus ${selectedBus} no longer exists. Auto-selecting first available.`)
+        onBusChange(busIds[0])
+      }
+      else if (!selectedBus && busIds.length > 0 && !showAll) {
         onBusChange(busIds[0])
       }
     } catch (error) {
