@@ -9,6 +9,7 @@ const API_BASE = '/api' // Node.js backend base path
 
 function SeasonTicketsPage() {
   const [members, setMembers] = useState([]);
+  const [waypoints, setWaypoints] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -33,35 +34,47 @@ function SeasonTicketsPage() {
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [capturedImage, setCapturedImage] = useState(null);
   const [faceEmbedding, setFaceEmbedding] = useState(null);
-  const [pendingStream, setPendingStream] = useState(null);
+  const [isProcessingFace, setIsProcessingFace] = useState(false);
+  const [activeStream, setActiveStream] = useState(null);
   const [editingMemberId, setEditingMemberId] = useState(null);
   const [confirmModal, setConfirmModal] = useState({ open: false, type: null, memberId: null, memberName: '' });
 
   useEffect(() => {
     fetchMembers();
     fetchStats();
+    fetchWaypoints();
   }, [filter]);
+
+  const fetchWaypoints = async () => {
+    try {
+      const response = await axios.get(`${API_BASE}/waypoint-groups/waypoints/unique`);
+      if (response.data.success) {
+        setWaypoints(response.data.waypoints);
+      }
+    } catch (error) {
+      console.error('Error fetching waypoints:', error);
+    }
+  };
 
   // Handle stream assignment when video element is ready
   useEffect(() => {
-    if (pendingStream && videoRef.current && isCameraActive) {
-      videoRef.current.srcObject = pendingStream;
+    if (activeStream && videoRef.current && isCameraActive) {
+      videoRef.current.srcObject = activeStream;
       videoRef.current.onloadedmetadata = () => {
         videoRef.current.play().catch(err => console.error('Play error:', err));
       };
-      setPendingStream(null);
     }
-  }, [pendingStream, isCameraActive]);
+  }, [activeStream, isCameraActive]);
 
   const autoDeactivateExpired = async (members) => {
     const now = new Date();
-    const expiredActiveMembers = members.filter(m => 
+    const expiredActiveMembers = members.filter(m =>
       m.is_active && new Date(m.valid_until) < now
     );
 
     if (expiredActiveMembers.length > 0) {
       console.log(`Auto-deactivating ${expiredActiveMembers.length} expired members`);
-      
+
       for (const member of expiredActiveMembers) {
         try {
           await axios.put(`${API_BASE}/season-ticket/members/${member.member_id}`, {
@@ -72,7 +85,7 @@ function SeasonTicketsPage() {
           console.error(`Failed to auto-deactivate ${member.member_id}:`, error);
         }
       }
-      
+
       if (expiredActiveMembers.length > 0) {
         toast.success(`Auto-deactivated ${expiredActiveMembers.length} expired member(s)`);
         return true; // Indicates members were deactivated
@@ -86,23 +99,23 @@ function SeasonTicketsPage() {
       setLoading(true);
       const activeOnly = filter === 'active' ? 'true' : 'false';
       const response = await axios.get(`${API_BASE}/season-ticket/members?active_only=${activeOnly}`);
-      
+
       let filteredMembers = response.data.members;
-      
+
       // Auto-deactivate expired members
       const wasDeactivated = await autoDeactivateExpired(filteredMembers);
-      
+
       // If members were deactivated, fetch again to get updated data
       if (wasDeactivated) {
         const updatedResponse = await axios.get(`${API_BASE}/season-ticket/members?active_only=${activeOnly}`);
         filteredMembers = updatedResponse.data.members;
       }
-      
+
       if (filter === 'expired') {
         const now = new Date();
         filteredMembers = filteredMembers.filter(m => new Date(m.valid_until) < now);
       }
-      
+
       setMembers(filteredMembers);
     } catch (error) {
       console.error('Error fetching members:', error);
@@ -129,21 +142,21 @@ function SeasonTicketsPage() {
       }
 
       console.log('📡 Requesting camera access...');
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { 
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
           width: { ideal: 640 },
           height: { ideal: 480 },
           facingMode: 'user'
-        } 
+        }
       });
 
       console.log('✅ Camera access granted!');
-      setPendingStream(stream);
+      setActiveStream(stream);
       setIsCameraActive(true);
     } catch (error) {
       console.error('❌ Camera error:', error);
       let errorMessage = 'Failed to access camera.\n\n';
-      
+
       if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
         errorMessage += '❌ Permission Denied\n\nPlease:\n1. Click the 🔒 lock icon in address bar\n2. Allow camera access\n3. Refresh the page and try again';
       } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
@@ -153,24 +166,26 @@ function SeasonTicketsPage() {
       } else {
         errorMessage += `❌ Error: ${error.name}\n\n${error.message}`;
       }
-      
+
       toast.error(errorMessage);
     }
   };
 
   const stopCamera = () => {
     console.log('⏹️ Stopping camera...');
-    
-    if (videoRef.current && videoRef.current.srcObject) {
-      videoRef.current.srcObject.getTracks().forEach(track => track.stop());
+
+    if (activeStream) {
+      activeStream.getTracks().forEach(track => {
+        track.stop();
+        console.log(`✅ Track stopped: ${track.label}`);
+      });
+      setActiveStream(null);
+    }
+
+    if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
-    
-    if (pendingStream) {
-      pendingStream.getTracks().forEach(track => track.stop());
-      setPendingStream(null);
-    }
-    
+
     setIsCameraActive(false);
   };
 
@@ -188,30 +203,39 @@ function SeasonTicketsPage() {
       return;
     }
 
-    console.log(`📸 Capturing photo: ${video.videoWidth}x${video.videoHeight}`);
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    
+    console.log(`📸 Capturing photo... target size 640x480 (Faster)`);
+    canvas.width = 640;
+    canvas.height = 480;
+
     const ctx = canvas.getContext('2d');
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    
-    const imageData = canvas.toDataURL('image/jpeg', 0.9);
+
+    const imageData = canvas.toDataURL('image/jpeg', 0.7);
     setCapturedImage(imageData);
+
+    // Stop the camera IMMEDIATELY so the hardware turns off
+    stopCamera();
 
     // Send to Python server for face embedding extraction
     try {
+      setIsProcessingFace(true);
       console.log('📤 Sending to Python server...');
       const response = await pythonAxios.post(API.python.extractFace, {
         image_data: imageData
       }, {
-        timeout: 10000
+        timeout: 60000
       });
 
       console.log('📥 Response from server:', response.data);
 
       if (response.data.success && response.data.face_embedding) {
         setFaceEmbedding(response.data.face_embedding);
-        
+
+        // Update to show the image with detection boxes if available
+        if (response.data.image_with_boxes) {
+          setCapturedImage(response.data.image_with_boxes);
+        }
+
         let successMsg = '✅ Face captured successfully!\n\n';
         if (response.data.is_mock) {
           successMsg += '⚠️ Using MOCK face recognition\nInstall face-recognition library for production use.';
@@ -221,28 +245,43 @@ function SeasonTicketsPage() {
           successMsg += '✅ Real face recognition active!';
         }
         toast.success(successMsg, { duration: 4000 });
-        stopCamera();
       } else {
         toast.error('⚠️ No face detected. Please try again with clear face visibility, good lighting, and face camera directly.');
+        setCapturedImage(null); // Clear failures so user can retake
       }
     } catch (error) {
       console.error('❌ Error extracting face embedding:', error);
-      let errorMsg = 'Failed to process face.\n\n';
-      
-      if (error.code === 'ECONNREFUSED' || error.message.includes('Network Error')) {
-        errorMsg += '❌ Cannot connect to Python server.\n\nPlease make sure:\n1. Python server is running\n2. Server is on port 8888';
-      } else {
-        errorMsg += `Error: ${error.message}`;
-      }
-      toast.error(errorMsg);
+      toast.error('Failed to process face: ' + error.message);
+      setCapturedImage(null);
+    } finally {
+      setIsProcessingFace(false);
     }
   };
 
   const handleInputChange = (e) => {
-    setFormData({
+    const { name, value } = e.target;
+
+    let updatedData = {
       ...formData,
-      [e.target.name]: e.target.value
-    });
+      [name]: value
+    };
+
+    // Auto-calculate end date (one month interval) if start date is changed
+    if (name === 'valid_from' && value) {
+      const startDate = new Date(value);
+      if (!isNaN(startDate.getTime())) {
+        const endDate = new Date(startDate);
+        endDate.setMonth(endDate.getMonth() + 1);
+
+        // Format to YYYY-MM-DD for date input
+        const yyyy = endDate.getFullYear();
+        const mm = String(endDate.getMonth() + 1).padStart(2, '0');
+        const dd = String(endDate.getDate()).padStart(2, '0');
+        updatedData.valid_until = `${yyyy}-${mm}-${dd}`;
+      }
+    }
+
+    setFormData(updatedData);
   };
 
   const handleSubmit = async (e) => {
@@ -260,7 +299,7 @@ function SeasonTicketsPage() {
     }
 
     setSaving(true);
-    
+
     try {
       const payload = {
         ...formData,
@@ -280,15 +319,15 @@ function SeasonTicketsPage() {
       if (editingMemberId) {
         const response = await axios.put(`${API_BASE}/season-ticket/members/${editingMemberId}`, payload);
         toast.success(`Season ticket member updated successfully! Valid for: ${formData.from_location} → ${formData.to_location}`);
-        
+
         // Update local state instead of refetching
-        setMembers(prev => prev.map(member => 
+        setMembers(prev => prev.map(member =>
           member.member_id === editingMemberId ? { ...member, ...response.data.member } : member
         ));
       } else {
         const response = await axios.post(`${API_BASE}/season-ticket/members`, payload);
         toast.success(`Season ticket member added successfully! Valid for: ${formData.from_location} → ${formData.to_location}`);
-        
+
         // Add to local state instead of refetching
         setMembers(prev => [...prev, response.data.member]);
       }
@@ -336,9 +375,9 @@ function SeasonTicketsPage() {
 
   const handleConfirmAction = async () => {
     const { type, memberId } = confirmModal;
-    
+
     console.log('handleConfirmAction called:', { type, memberId });
-    
+
     if (!memberId) {
       console.error('No memberId provided');
       toast.error('Invalid member ID');
@@ -353,9 +392,9 @@ function SeasonTicketsPage() {
         });
         console.log('Disable response:', response);
         toast.success('Member disabled successfully');
-        
+
         // Update local state instead of refetching
-        setMembers(prev => prev.map(member => 
+        setMembers(prev => prev.map(member =>
           member.member_id === memberId ? { ...member, is_active: false } : member
         ));
       } else if (type === 'reactivate') {
@@ -365,9 +404,9 @@ function SeasonTicketsPage() {
         });
         console.log('Reactivate response:', response);
         toast.success('Member reactivated successfully');
-        
+
         // Update local state instead of refetching
-        setMembers(prev => prev.map(member => 
+        setMembers(prev => prev.map(member =>
           member.member_id === memberId ? { ...member, is_active: true } : member
         ));
       } else if (type === 'delete') {
@@ -375,11 +414,11 @@ function SeasonTicketsPage() {
         const response = await axios.delete(`${API_BASE}/season-ticket/members/${memberId}`);
         console.log('Delete response:', response);
         toast.success('Member deleted permanently');
-        
+
         // Remove from local state instead of refetching
         setMembers(prev => prev.filter(member => member.member_id !== memberId));
       }
-      
+
       setConfirmModal({ open: false, type: null, memberId: null, memberName: '' });
       // Fetch stats only (lightweight)
       fetchStats();
@@ -412,11 +451,11 @@ function SeasonTicketsPage() {
       {/* Confirmation Modal */}
       {confirmModal.open && (
         <div className="fixed inset-0 flex items-center justify-center p-4" style={{ zIndex: 9999 }}>
-          <div 
+          <div
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
             onClick={() => setConfirmModal({ open: false, type: null, memberId: null, memberName: '' })}
           />
-          
+
           <div className="relative w-full max-w-md bg-slate-900 border border-purple-500/30 rounded-2xl shadow-2xl shadow-purple-500/20" style={{ zIndex: 10000 }}>
             <div className="bg-slate-900/95 backdrop-blur-sm border-b border-purple-500/20 px-6 py-4">
               <h3 className="text-xl font-bold text-slate-100 flex items-center gap-2">
@@ -428,19 +467,18 @@ function SeasonTicketsPage() {
             </div>
 
             <div className="p-6 space-y-4">
-              <div className={`rounded-xl border p-4 ${
-                confirmModal.type === 'deactivate' 
-                  ? 'bg-orange-500/10 border-orange-500/30' 
-                  : confirmModal.type === 'delete'
+              <div className={`rounded-xl border p-4 ${confirmModal.type === 'deactivate'
+                ? 'bg-orange-500/10 border-orange-500/30'
+                : confirmModal.type === 'delete'
                   ? 'bg-red-500/10 border-red-500/30'
                   : 'bg-emerald-500/10 border-emerald-500/30'
-              }`}>
+                }`}>
                 <p className="text-slate-200 font-semibold mb-2">
-                  {confirmModal.type === 'deactivate' 
-                    ? `Disable ${confirmModal.memberName}?` 
+                  {confirmModal.type === 'deactivate'
+                    ? `Disable ${confirmModal.memberName}?`
                     : confirmModal.type === 'delete'
-                    ? `Delete ${confirmModal.memberName}?`
-                    : `Reactivate ${confirmModal.memberName}?`}
+                      ? `Delete ${confirmModal.memberName}?`
+                      : `Reactivate ${confirmModal.memberName}?`}
                 </p>
                 <p className="text-sm text-slate-300">
                   Member ID: <span className="font-mono text-purple-300">{confirmModal.memberId}</span>
@@ -475,13 +513,12 @@ function SeasonTicketsPage() {
               </button>
               <button
                 onClick={handleConfirmAction}
-                className={`flex-1 px-4 py-3 text-white rounded-lg shadow-lg transition-all font-semibold ${
-                  confirmModal.type === 'deactivate'
-                    ? 'bg-gradient-to-r from-orange-500 to-orange-600 shadow-orange-500/50 hover:shadow-xl'
-                    : confirmModal.type === 'delete'
+                className={`flex-1 px-4 py-3 text-white rounded-lg shadow-lg transition-all font-semibold ${confirmModal.type === 'deactivate'
+                  ? 'bg-gradient-to-r from-orange-500 to-orange-600 shadow-orange-500/50 hover:shadow-xl'
+                  : confirmModal.type === 'delete'
                     ? 'bg-gradient-to-r from-red-500 to-red-600 shadow-red-500/50 hover:shadow-xl'
                     : 'bg-gradient-to-r from-emerald-500 to-emerald-600 shadow-emerald-500/50 hover:shadow-xl'
-                }`}
+                  }`}
               >
                 {confirmModal.type === 'deactivate' ? 'Disable' : confirmModal.type === 'delete' ? 'Delete Permanently' : 'Reactivate'}
               </button>
@@ -521,39 +558,36 @@ function SeasonTicketsPage() {
 
       <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
         <div className="flex gap-2">
-          <button 
-            className={`px-4 py-2 rounded-lg font-medium transition-all ${
-              filter === 'all' 
-                ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg shadow-purple-500/50' 
-                : 'bg-slate-800/50 border border-purple-500/30 text-slate-300 hover:bg-slate-700/50'
-            }`}
+          <button
+            className={`px-4 py-2 rounded-lg font-medium transition-all ${filter === 'all'
+              ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg shadow-purple-500/50'
+              : 'bg-slate-800/50 border border-purple-500/30 text-slate-300 hover:bg-slate-700/50'
+              }`}
             onClick={() => setFilter('all')}
           >
             All
           </button>
-          <button 
-            className={`px-4 py-2 rounded-lg font-medium transition-all ${
-              filter === 'active' 
-                ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg shadow-purple-500/50' 
-                : 'bg-slate-800/50 border border-purple-500/30 text-slate-300 hover:bg-slate-700/50'
-            }`}
+          <button
+            className={`px-4 py-2 rounded-lg font-medium transition-all ${filter === 'active'
+              ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg shadow-purple-500/50'
+              : 'bg-slate-800/50 border border-purple-500/30 text-slate-300 hover:bg-slate-700/50'
+              }`}
             onClick={() => setFilter('active')}
           >
             Active
           </button>
-          <button 
-            className={`px-4 py-2 rounded-lg font-medium transition-all ${
-              filter === 'expired' 
-                ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg shadow-purple-500/50' 
-                : 'bg-slate-800/50 border border-purple-500/30 text-slate-300 hover:bg-slate-700/50'
-            }`}
+          <button
+            className={`px-4 py-2 rounded-lg font-medium transition-all ${filter === 'expired'
+              ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg shadow-purple-500/50'
+              : 'bg-slate-800/50 border border-purple-500/30 text-slate-300 hover:bg-slate-700/50'
+              }`}
             onClick={() => setFilter('expired')}
           >
             Expired
           </button>
         </div>
-        
-        <button 
+
+        <button
           className="px-6 py-3 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-lg font-semibold shadow-lg shadow-emerald-500/30 hover:shadow-xl transition-all"
           onClick={() => setShowAddForm(!showAddForm)}
         >
@@ -573,7 +607,7 @@ function SeasonTicketsPage() {
             </h4>
 
             {!isCameraActive && !capturedImage && (
-              <button 
+              <button
                 onClick={startCamera}
                 className="px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg font-semibold shadow-lg shadow-blue-500/30 hover:shadow-xl transition-all"
               >
@@ -581,29 +615,29 @@ function SeasonTicketsPage() {
               </button>
             )}
 
-            {isCameraActive && (
+            {isCameraActive && !capturedImage && (
               <div className="space-y-3">
                 <p className="text-sm text-slate-300 flex items-center gap-2">
                   <span className="text-lg">📹</span>
-                  Camera is active - You should see yourself below
+                  Camera is active - Position your face in the center
                 </p>
-                <video 
-                  ref={videoRef} 
-                  autoPlay 
-                  playsInline 
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  playsInline
                   muted
                   className="w-full max-w-md border-2 border-purple-500/30 rounded-xl shadow-lg"
                 />
                 <div className="flex gap-3">
-                  <button 
+                  <button
                     onClick={capturePhoto}
                     className="px-6 py-3 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-lg font-semibold shadow-lg shadow-emerald-500/30 hover:shadow-xl transition-all"
                   >
-                    📸 Capture
+                    📸 Capture Photo
                   </button>
-                  <button 
+                  <button
                     onClick={stopCamera}
-                    className="px-6 py-3 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg font-semibold shadow-lg shadow-red-500/30 hover:shadow-xl transition-all"
+                    className="px-6 py-3 bg-slate-800 border border-slate-700 text-slate-300 rounded-lg font-semibold hover:bg-slate-700 transition-all"
                   >
                     ✕ Cancel
                   </button>
@@ -613,26 +647,41 @@ function SeasonTicketsPage() {
 
             {capturedImage && (
               <div className="space-y-3">
-                <img 
-                  src={capturedImage} 
-                  alt="Captured face" 
-                  className="w-full max-w-md border-2 border-purple-500/30 rounded-xl shadow-lg" 
-                />
+                <div className="relative w-full max-w-md">
+                  <img
+                    src={capturedImage}
+                    alt="Captured face"
+                    className={`w-full border-2 rounded-xl shadow-lg transition-all ${isProcessingFace ? 'border-blue-500/50 opacity-70 blur-[1px]' : 'border-purple-500/30'
+                      }`}
+                  />
+
+                  {isProcessingFace && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900/40 rounded-xl backdrop-blur-[2px]">
+                      <div className="w-12 h-12 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin mb-3"></div>
+                      <p className="text-blue-100 font-bold text-shadow-sm">Extracting Face Embedding...</p>
+                      <p className="text-blue-200/70 text-xs mt-1">Applying HOG + dlib models</p>
+                    </div>
+                  )}
+                </div>
+
                 <div className="flex gap-3 items-center">
-                  <button 
-                    onClick={() => {
-                      setCapturedImage(null);
-                      setFaceEmbedding(null);
-                      startCamera();
-                    }}
-                    className="px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg font-semibold shadow-lg shadow-blue-500/30 hover:shadow-xl transition-all"
-                  >
-                    🔄 Retake
-                  </button>
-                  {faceEmbedding && (
-                    <span className="flex items-center gap-2 text-emerald-300 font-semibold">
+                  {!isProcessingFace && (
+                    <button
+                      onClick={() => {
+                        setCapturedImage(null);
+                        setFaceEmbedding(null);
+                        startCamera();
+                      }}
+                      className="px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg font-semibold shadow-lg shadow-blue-500/30 hover:shadow-xl transition-all"
+                    >
+                      🔄 Retake Photo
+                    </button>
+                  )}
+
+                  {faceEmbedding && !isProcessingFace && (
+                    <span className="flex items-center gap-2 text-emerald-400 font-bold bg-emerald-500/10 px-4 py-2 rounded-lg border border-emerald-500/30">
                       <span className="text-xl">✓</span>
-                      Face processed successfully
+                      Face Detected & Synchronized
                     </span>
                   )}
                 </div>
@@ -645,7 +694,7 @@ function SeasonTicketsPage() {
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
               <h4 className="text-lg font-semibold text-slate-200 mb-4">2. Member Information</h4>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-300 mb-2">Full Name *</label>
@@ -681,19 +730,8 @@ function SeasonTicketsPage() {
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">Ticket Type</label>
-                  <select
-                    name="ticket_type"
-                    value={formData.ticket_type}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-3 bg-slate-800/50 border border-purple-500/30 text-slate-100 rounded-lg focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 transition-all cursor-pointer"
-                  >
-                    <option value="monthly" className="bg-slate-900 text-slate-100">Monthly</option>
-                    <option value="quarterly" className="bg-slate-900 text-slate-100">Quarterly</option>
-                    <option value="yearly" className="bg-slate-900 text-slate-100">Yearly</option>
-                  </select>
-                </div>
+                {/* Ticket Type removed as per request (defaulting to monthly) */}
+
 
                 <div>
                   <label className="block text-sm font-medium text-slate-300 mb-2">Valid From *</label>
@@ -732,8 +770,9 @@ function SeasonTicketsPage() {
                   <label className="block text-sm font-medium text-slate-300 mb-2">From Location *</label>
                   <input
                     type="text"
+                    list="waypoint-list"
                     value={formData.from_location || ''}
-                    onChange={(e) => setFormData({...formData, from_location: e.target.value})}
+                    onChange={(e) => setFormData({ ...formData, from_location: e.target.value })}
                     placeholder="e.g., Jaffna"
                     required
                     className="w-full px-4 py-3 bg-slate-800/50 border border-purple-500/30 text-slate-100 rounded-lg focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 transition-all placeholder:text-slate-500"
@@ -744,17 +783,24 @@ function SeasonTicketsPage() {
                   <label className="block text-sm font-medium text-slate-300 mb-2">To Location *</label>
                   <input
                     type="text"
+                    list="waypoint-list"
                     value={formData.to_location || ''}
-                    onChange={(e) => setFormData({...formData, to_location: e.target.value})}
+                    onChange={(e) => setFormData({ ...formData, to_location: e.target.value })}
                     placeholder="e.g., Kodikamam"
                     required
                     className="w-full px-4 py-3 bg-slate-800/50 border border-purple-500/30 text-slate-100 rounded-lg focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 transition-all placeholder:text-slate-500"
                   />
                 </div>
+
+                <datalist id="waypoint-list">
+                  {waypoints.map((wp, index) => (
+                    <option key={index} value={wp} />
+                  ))}
+                </datalist>
               </div>
             </div>
 
-            <button 
+            <button
               type="submit"
               disabled={(!editingMemberId && !faceEmbedding) || saving}
               className="w-full px-6 py-4 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg font-bold shadow-lg shadow-purple-500/50 hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:from-slate-600 disabled:to-slate-700 flex items-center justify-center gap-2"
@@ -814,11 +860,10 @@ function SeasonTicketsPage() {
                   const isExpired = now > validUntil;
 
                   return (
-                    <tr 
-                      key={member._id} 
-                      className={`hover:bg-slate-900/80 transition-colors ${
-                        isActive ? 'bg-emerald-500/5' : isExpired ? 'bg-red-500/5' : ''
-                      }`}
+                    <tr
+                      key={member._id}
+                      className={`hover:bg-slate-900/80 transition-colors ${isActive ? 'bg-emerald-500/5' : isExpired ? 'bg-red-500/5' : ''
+                        }`}
                     >
                       <td className="px-4 py-3 font-mono text-xs text-indigo-300">{member.member_id}</td>
                       <td className="px-4 py-3 font-semibold text-slate-100">{member.name}</td>
@@ -827,18 +872,17 @@ function SeasonTicketsPage() {
                       <td className="px-4 py-3 text-slate-300">{new Date(member.valid_from).toLocaleDateString()}</td>
                       <td className="px-4 py-3 text-slate-300">{new Date(member.valid_until).toLocaleDateString()}</td>
                       <td className="px-4 py-3">
-                        <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold ${
-                          isActive ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 
-                          isExpired ? 'bg-red-500/20 text-red-300 border border-red-500/30' : 
-                          'bg-slate-700/50 text-slate-400 border border-slate-600'
-                        }`}>
+                        <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold ${isActive ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' :
+                          isExpired ? 'bg-red-500/20 text-red-300 border border-red-500/30' :
+                            'bg-slate-700/50 text-slate-400 border border-slate-600'
+                          }`}>
                           {isActive ? '✓ Active' : isExpired ? '✕ Expired' : '⏸ Inactive'}
                         </span>
                       </td>
                       <td className="px-4 py-3 font-semibold text-slate-100">{member.total_trips || 0}</td>
                       <td className="px-4 py-3">
                         <div className="flex gap-2 flex-wrap">
-                          <button 
+                          <button
                             onClick={() => editMember(member)}
                             className="px-3 py-1.5 bg-blue-500/20 text-blue-300 border border-blue-500/30 rounded-lg text-xs font-medium hover:bg-blue-500/30 transition-all"
                             title="Edit member details"
@@ -846,7 +890,7 @@ function SeasonTicketsPage() {
                             ✏️ Edit
                           </button>
                           {isActive ? (
-                            <button 
+                            <button
                               onClick={() => openDeactivateConfirm(member.member_id, member.name)}
                               className="px-3 py-1.5 bg-orange-500/20 text-orange-300 border border-orange-500/30 rounded-lg text-xs font-medium hover:bg-orange-500/30 transition-all"
                               title="Disable season ticket"
@@ -854,7 +898,7 @@ function SeasonTicketsPage() {
                               ⏸️ Disable
                             </button>
                           ) : (
-                            <button 
+                            <button
                               onClick={() => openReactivateConfirm(member.member_id, member.name)}
                               className="px-3 py-1.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-lg text-xs font-medium hover:bg-emerald-500/30 transition-all"
                               title="Reactivate season ticket"
@@ -862,7 +906,7 @@ function SeasonTicketsPage() {
                               ▶️ Reactivate
                             </button>
                           )}
-                          <button 
+                          <button
                             onClick={() => openDeleteConfirm(member.member_id, member.name)}
                             className="px-3 py-1.5 bg-red-500/20 text-red-300 border border-red-500/30 rounded-lg text-xs font-medium hover:bg-red-500/30 transition-all"
                             title="Delete member permanently"

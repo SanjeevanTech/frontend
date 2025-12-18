@@ -71,7 +71,7 @@ function SchedulePage() {
     }
   }
 
-  const handleAddTrip = () => {
+  const handleAddTrip = async () => {
     if (!newTrip.departure_time || !newTrip.estimated_arrival_time) {
       toast.error('Please fill in departure time and arrival time')
       return
@@ -105,17 +105,42 @@ function SchedulePage() {
       }
     }
 
-    setSchedule(updatedSchedule)
-    setEditingIndex(null)
-    setNewTrip({
-      direction: '',
-      boarding_start_time: '',
-      departure_time: '',
-      estimated_arrival_time: '',
-      route_id: '',
-      route: '',
-      active: true
-    })
+    try {
+      setSaving(true)
+
+      let response
+      if (updatedSchedule._id) {
+        response = await axios.put(`${API.node.saveBusSchedule}/${updatedSchedule.bus_id}`, updatedSchedule)
+      } else {
+        response = await axios.post(API.node.saveBusSchedule, updatedSchedule)
+      }
+
+      await axios.put(API.node.syncPowerConfig, { bus_id: updatedSchedule.bus_id })
+
+      if (response.data.schedule) {
+        setSchedule(response.data.schedule)
+      } else {
+        setSchedule(updatedSchedule)
+      }
+
+      setEditingIndex(null)
+      setNewTrip({
+        direction: '',
+        boarding_start_time: '',
+        departure_time: '',
+        estimated_arrival_time: '',
+        route_id: '',
+        route: '',
+        active: true
+      })
+
+      toast.success(editingIndex !== null ? 'Trip updated and synced!' : 'New trip added and synced!')
+    } catch (error) {
+      console.error('Error adding/updating trip:', error)
+      toast.error('Failed to save trip: ' + (error.response?.data?.error || error.message))
+    } finally {
+      setSaving(false)
+    }
   }
 
   const handleEditTrip = (index) => {
@@ -363,12 +388,6 @@ function SchedulePage() {
           </div>
         )}
 
-        <div className="mb-6 p-4 rounded-lg bg-purple-500/10 border border-purple-500/30">
-          <p className="text-sm font-semibold text-purple-300 mb-2">ℹ️ Trip Name Auto-Generated</p>
-          <p className="text-sm text-slate-300">Trip name will be automatically created from: <strong>Route Name + Departure Time</strong></p>
-          <p className="text-sm text-slate-400 mt-1">Example: "Jaffna - Vavuniya Express - 07:00"</p>
-        </div>
-
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-slate-300 mb-2">Route *</label>
@@ -447,48 +466,28 @@ function SchedulePage() {
           </div>
 
           <button
-            className="w-full px-6 py-4 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold rounded-lg shadow-lg shadow-purple-500/50 hover:shadow-xl transition-all"
+            className="w-full px-6 py-4 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold rounded-lg shadow-lg shadow-purple-500/50 hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             onClick={handleAddTrip}
+            disabled={saving}
           >
-            {editingIndex !== null ? '💾 Update Trip' : '➕ Add Trip to Schedule'}
+            {saving ? (
+              <>
+                <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Saving...
+              </>
+            ) : (
+              editingIndex !== null ? '💾 Update Trip' : '➕ Add Trip to Schedule'
+            )}
           </button>
         </div>
       </div>
 
-      <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-6">
-        <button
-          className="w-full px-6 py-4 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-bold rounded-lg shadow-lg shadow-emerald-500/30 hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-          onClick={handleSaveSchedule}
-          disabled={saving}
-        >
-          {saving ? '💾 Saving...' : '💾 Save Schedule & Sync ESP32'}
-        </button>
-        <p className="text-sm text-emerald-300 text-center mt-3">
-          ℹ️ Saving will update the schedule and automatically sync ESP32 power config
-        </p>
-      </div>
 
-      <div className="rounded-xl border border-purple-500/20 bg-slate-800/30 p-6 space-y-4">
-        <div>
-          <h4 className="text-lg font-bold text-slate-100 mb-2">💡 How it works:</h4>
-          <ul className="space-y-2 text-sm text-slate-300">
-            <li><strong className="text-purple-300">Auto Trip Names:</strong> Generated from route name + departure time</li>
-            <li><strong className="text-purple-300">Multiple Trips:</strong> Add as many trips as needed per day</li>
-            <li><strong className="text-purple-300">Same Route, Different Times:</strong> Same bus can run same route multiple times</li>
-            <li><strong className="text-purple-300">ESP32 Power:</strong> Automatically calculated from first to last trip</li>
-            <li><strong className="text-purple-300">Auto Sync:</strong> ESP32 boards sync every 30 seconds</li>
-          </ul>
-        </div>
 
-        <div>
-          <h4 className="text-lg font-bold text-slate-100 mb-2">📋 Example Schedule:</h4>
-          <ul className="space-y-1 text-sm text-slate-300">
-            <li>07:00 - Jaffna → Vavuniya (Trip: "Jaffna - Vavuniya Express - 07:00")</li>
-            <li>15:00 - Vavuniya → Jaffna (Trip: "Vavuniya - Jaffna Express - 15:00")</li>
-            <li>21:00 - Jaffna → Vavuniya (Trip: "Jaffna - Vavuniya Express - 21:00")</li>
-          </ul>
-        </div>
-      </div>
+
 
       {/* Delete Confirmation Modal */}
       <DeleteConfirmModal
