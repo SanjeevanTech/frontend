@@ -536,22 +536,22 @@ function SeasonTicketsPage() {
       </header>
 
       {stats && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6 shadow-inner shadow-black/20">
-            <h3 className="text-3xl font-bold text-slate-100">{stats.total}</h3>
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mt-2">Total Members</p>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div className="rounded-xl sm:rounded-2xl border border-slate-800 bg-slate-900/60 p-4 sm:p-6 shadow-inner shadow-black/20">
+            <h3 className="text-xl sm:text-3xl font-bold text-slate-100">{stats.total}</h3>
+            <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-slate-400 mt-1 sm:mt-2">Total</p>
           </div>
-          <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-6 shadow-inner shadow-black/20">
-            <h3 className="text-3xl font-bold text-emerald-300">{stats.active}</h3>
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mt-2">Active</p>
+          <div className="rounded-xl sm:rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 sm:p-6 shadow-inner shadow-black/20">
+            <h3 className="text-xl sm:text-3xl font-bold text-emerald-400">{stats.active}</h3>
+            <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-slate-400 mt-1 sm:mt-2">Active</p>
           </div>
-          <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-6 shadow-inner shadow-black/20">
-            <h3 className="text-3xl font-bold text-red-300">{stats.expired}</h3>
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mt-2">Expired</p>
+          <div className="rounded-xl sm:rounded-2xl border border-red-500/30 bg-red-500/10 p-4 sm:p-6 shadow-inner shadow-black/20">
+            <h3 className="text-xl sm:text-3xl font-bold text-red-400">{stats.expired}</h3>
+            <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-slate-400 mt-1 sm:mt-2">Expired</p>
           </div>
-          <div className="rounded-2xl border border-blue-500/30 bg-blue-500/10 p-6 shadow-inner shadow-black/20">
-            <h3 className="text-3xl font-bold text-blue-300">{stats.upcoming}</h3>
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mt-2">Upcoming</p>
+          <div className="rounded-xl sm:rounded-2xl border border-blue-500/30 bg-blue-500/10 p-4 sm:p-6 shadow-inner shadow-black/20">
+            <h3 className="text-xl sm:text-3xl font-bold text-blue-400">{stats.upcoming}</h3>
+            <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-slate-400 mt-1 sm:mt-2">Soon</p>
           </div>
         </div>
       )}
@@ -836,90 +836,104 @@ function SeasonTicketsPage() {
             <p className="text-lg text-slate-400">No members found</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-slate-950/70 text-left text-xs uppercase tracking-wide text-slate-400">
-                <tr>
-                  <th className="px-4 py-3 font-semibold">Member ID</th>
-                  <th className="px-4 py-3 font-semibold">Name</th>
-                  <th className="px-4 py-3 font-semibold">Phone</th>
-                  <th className="px-4 py-3 font-semibold">Type</th>
-                  <th className="px-4 py-3 font-semibold">Valid From</th>
-                  <th className="px-4 py-3 font-semibold">Valid Until</th>
-                  <th className="px-4 py-3 font-semibold">Status</th>
-                  <th className="px-4 py-3 font-semibold">Trips</th>
-                  <th className="px-4 py-3 font-semibold">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800 text-sm text-slate-200">
-                {members.map(member => {
-                  const now = new Date();
-                  const validFrom = new Date(member.valid_from);
-                  const validUntil = new Date(member.valid_until);
-                  const isActive = member.is_active && now >= validFrom && now <= validUntil;
-                  const isExpired = now > validUntil;
+          <div className="overflow-x-auto rounded-b-2xl">
+            <div className="inline-block min-w-full align-middle">
+              <table className="min-w-[1100px] w-full border-collapse">
+                <thead className="bg-slate-950/70 text-left text-xs uppercase tracking-wide text-slate-400">
+                  <tr>
+                    <th className="px-5 py-4 font-semibold">Member ID</th>
+                    <th className="px-5 py-4 font-semibold">Name</th>
+                    <th className="px-5 py-4 font-semibold">Phone</th>
+                    <th className="px-5 py-4 font-semibold">Type</th>
+                    <th className="px-5 py-4 font-semibold">Valid Periods</th>
+                    <th className="px-5 py-4 font-semibold">Status</th>
+                    <th className="px-5 py-4 font-semibold">Trips</th>
+                    <th className="px-5 py-4 font-semibold">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/50 text-sm text-slate-200">
+                  {members.map(member => {
+                    const now = new Date();
+                    const validFrom = new Date(member.valid_from);
+                    const validUntil = new Date(member.valid_until);
+                    const isActive = member.is_active && now >= validFrom && now <= validUntil;
+                    const isExpired = now > validUntil;
 
-                  return (
-                    <tr
-                      key={member._id}
-                      className={`hover:bg-slate-900/80 transition-colors ${isActive ? 'bg-emerald-500/5' : isExpired ? 'bg-red-500/5' : ''
-                        }`}
-                    >
-                      <td className="px-4 py-3 font-mono text-xs text-indigo-300">{member.member_id}</td>
-                      <td className="px-4 py-3 font-semibold text-slate-100">{member.name}</td>
-                      <td className="px-4 py-3 text-slate-300">{member.phone || '-'}</td>
-                      <td className="px-4 py-3 text-slate-300 capitalize">{member.ticket_type}</td>
-                      <td className="px-4 py-3 text-slate-300">{new Date(member.valid_from).toLocaleDateString()}</td>
-                      <td className="px-4 py-3 text-slate-300">{new Date(member.valid_until).toLocaleDateString()}</td>
-                      <td className="px-4 py-3">
-                        <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold ${isActive ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' :
-                          isExpired ? 'bg-red-500/20 text-red-300 border border-red-500/30' :
-                            'bg-slate-700/50 text-slate-400 border border-slate-600'
-                          }`}>
-                          {isActive ? '✓ Active' : isExpired ? '✕ Expired' : '⏸ Inactive'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 font-semibold text-slate-100">{member.total_trips || 0}</td>
-                      <td className="px-4 py-3">
-                        <div className="flex gap-2 flex-wrap">
-                          <button
-                            onClick={() => editMember(member)}
-                            className="px-3 py-1.5 bg-blue-500/20 text-blue-300 border border-blue-500/30 rounded-lg text-xs font-medium hover:bg-blue-500/30 transition-all"
-                            title="Edit member details"
-                          >
-                            ✏️ Edit
-                          </button>
-                          {isActive ? (
+                    return (
+                      <tr
+                        key={member._id}
+                        className={`hover:bg-slate-800/30 transition-colors ${isActive ? 'bg-emerald-500/5' : isExpired ? 'bg-rose-500/5' : ''
+                          }`}
+                      >
+                        <td className="px-5 py-4 whitespace-nowrap font-mono text-[10px] text-indigo-400">{member.member_id}</td>
+                        <td className="px-5 py-4 whitespace-nowrap font-bold text-slate-100">{member.name}</td>
+                        <td className="px-5 py-4 whitespace-nowrap text-slate-300 font-mono text-xs">{member.phone || '---'}</td>
+                        <td className="px-5 py-4 whitespace-nowrap uppercase tracking-wider text-[10px] font-bold text-slate-400">{member.ticket_type}</td>
+                        <td className="px-5 py-4 whitespace-nowrap">
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-xs text-slate-300">{new Date(member.valid_from).toLocaleDateString()}</span>
+                            <span className="text-[10px] text-slate-500">to {new Date(member.valid_until).toLocaleDateString()}</span>
+                          </div>
+                        </td>
+                        <td className="px-5 py-4 whitespace-nowrap">
+                          <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase ${isActive ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+                            isExpired ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' :
+                              'bg-slate-800 text-slate-500 border border-slate-700'
+                            }`}>
+                            {isActive ? 'Active' : isExpired ? 'Expired' : 'Inactive'}
+                          </span>
+                        </td>
+                        <td className="px-5 py-4 whitespace-nowrap font-bold text-slate-100">{member.total_trips || 0}</td>
+                        <td className="px-5 py-4 whitespace-nowrap">
+                          <div className="flex gap-2">
                             <button
-                              onClick={() => openDeactivateConfirm(member.member_id, member.name)}
-                              className="px-3 py-1.5 bg-orange-500/20 text-orange-300 border border-orange-500/30 rounded-lg text-xs font-medium hover:bg-orange-500/30 transition-all"
-                              title="Disable season ticket"
+                              onClick={() => editMember(member)}
+                              className="p-2 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-lg hover:bg-blue-500/20 transition-all"
+                              title="Edit Member"
                             >
-                              ⏸️ Disable
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                              </svg>
                             </button>
-                          ) : (
+                            {isActive ? (
+                              <button
+                                onClick={() => openDeactivateConfirm(member.member_id, member.name)}
+                                className="p-2 bg-orange-500/10 text-orange-400 border border-orange-500/20 rounded-lg hover:bg-orange-500/20 transition-all"
+                                title="Disable Member"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => openReactivateConfirm(member.member_id, member.name)}
+                                className="p-2 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-lg hover:bg-emerald-500/20 transition-all"
+                                title="Reactivate Member"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                              </button>
+                            )}
                             <button
-                              onClick={() => openReactivateConfirm(member.member_id, member.name)}
-                              className="px-3 py-1.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-lg text-xs font-medium hover:bg-emerald-500/30 transition-all"
-                              title="Reactivate season ticket"
+                              onClick={() => openDeleteConfirm(member.member_id, member.name)}
+                              className="p-2 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-lg hover:bg-rose-500/20 transition-all"
+                              title="Delete Permanently"
                             >
-                              ▶️ Reactivate
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-4v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
                             </button>
-                          )}
-                          <button
-                            onClick={() => openDeleteConfirm(member.member_id, member.name)}
-                            className="px-3 py-1.5 bg-red-500/20 text-red-300 border border-red-500/30 rounded-lg text-xs font-medium hover:bg-red-500/30 transition-all"
-                            title="Delete member permanently"
-                          >
-                            🗑️ Delete
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>

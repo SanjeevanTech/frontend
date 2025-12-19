@@ -186,18 +186,18 @@ function WaypointsPage() {
 
   return (
     <div className="space-y-6">
-      <header className="text-center">
-        <h1 className="text-3xl font-bold text-slate-100 flex items-center justify-center gap-2">
+      <header className="text-left sm:text-center px-2">
+        <h1 className="text-2xl sm:text-3xl font-bold text-slate-100 flex items-center justify-center sm:justify-center gap-2">
           <span>📍</span>
-          Waypoint Group Management
+          Waypoint Groups
         </h1>
-        <p className="text-slate-400 mt-2">Create reusable waypoint sequences for your bus routes</p>
+        <p className="text-xs sm:text-sm text-slate-400 mt-1 sm:mt-2">Reusable waypoint sequences for routes</p>
         <button
           onClick={() => {
             resetForm()
             setShowAddForm(!showAddForm)
           }}
-          className="mt-4 px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-semibold rounded-lg shadow-lg shadow-purple-500/50 hover:shadow-xl transition-all"
+          className="w-full sm:w-auto mt-6 px-8 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold rounded-xl shadow-lg shadow-purple-500/50 hover:shadow-xl transition-all"
         >
           {showAddForm ? '✕ Cancel' : '➕ Add Group'}
         </button>
@@ -361,14 +361,14 @@ function WaypointsPage() {
                   </span>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-1 mb-4 text-sm">
+                <div className="flex flex-wrap items-center gap-1.5 mb-5 min-h-[40px]">
                   {group.waypoints?.map((wp, idx) => (
                     <div key={idx} className="flex items-center">
-                      <span className="px-2 py-1 bg-slate-700/50 text-slate-300 rounded break-words">
+                      <span className="px-2 py-0.5 bg-slate-900/40 text-[11px] text-slate-300 rounded border border-slate-700/50">
                         {wp.name}
                       </span>
                       {idx < group.waypoints.length - 1 && (
-                        <span className="mx-1 text-purple-400">→</span>
+                        <span className="mx-0.5 text-purple-500/50 text-xs">→</span>
                       )}
                     </div>
                   ))}

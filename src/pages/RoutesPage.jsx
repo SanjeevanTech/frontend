@@ -279,20 +279,20 @@ function RoutesPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-slate-100 flex items-center gap-2">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="text-center sm:text-left">
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-100 flex items-center justify-center sm:justify-start gap-2">
             <span>🗺️</span>
-            Bus Route Management
+            Routes
           </h1>
-          <p className="text-slate-400 mt-1">Routes ({routes.length})</p>
+          <p className="text-slate-400 mt-1">Total {routes.length} configured routes</p>
         </div>
         <button
           onClick={() => {
             resetForm()
             setShowAddForm(!showAddForm)
           }}
-          className="px-6 py-3 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white rounded-lg shadow-lg font-semibold transition-all"
+          className="w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white rounded-lg shadow-lg font-semibold transition-all"
         >
           {showAddForm ? '✕ Cancel' : '➕ Add New Route'}
         </button>
@@ -470,24 +470,24 @@ function RoutesPage() {
             </div>
 
             {/* Method Selector */}
-            <div className="flex gap-4 p-4 bg-slate-900/50 rounded-lg border border-purple-500/20">
-              <label className="flex items-center gap-2 cursor-pointer">
+            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 p-4 bg-slate-900/50 rounded-lg border border-purple-500/20">
+              <label className="flex items-center gap-2 cursor-pointer group">
                 <input
                   type="radio"
                   checked={useWaypointGroups}
                   onChange={() => setUseWaypointGroups(true)}
-                  className="w-4 h-4"
+                  className="w-4 h-4 text-purple-500 bg-slate-800 border-purple-500/30"
                 />
-                <span className="text-slate-200">Use Waypoint Groups (Recommended)</span>
+                <span className="text-sm font-medium text-slate-200 group-hover:text-purple-300 transition-colors">Waypoint Groups (Recommended)</span>
               </label>
-              <label className="flex items-center gap-2 cursor-pointer">
+              <label className="flex items-center gap-2 cursor-pointer group">
                 <input
                   type="radio"
                   checked={!useWaypointGroups}
                   onChange={() => setUseWaypointGroups(false)}
-                  className="w-4 h-4"
+                  className="w-4 h-4 text-purple-500 bg-slate-800 border-purple-500/30"
                 />
-                <span className="text-slate-200">Manual Stops</span>
+                <span className="text-sm font-medium text-slate-200 group-hover:text-purple-300 transition-colors">Manual Stops</span>
               </label>
             </div>
 
@@ -585,33 +585,35 @@ function RoutesPage() {
                       <div className="flex-shrink-0 w-8 h-8 bg-purple-500/20 text-purple-300 rounded-full flex items-center justify-center font-bold">
                         {index + 1}
                       </div>
-                      <div className="flex-1 grid grid-cols-2 gap-3">
+                      <div className="flex-1 space-y-3">
                         <input
                           type="text"
                           placeholder="Stop Name *"
                           value={stop.stop_name}
                           onChange={(e) => handleStopChange(index, 'stop_name', e.target.value)}
                           required
-                          className="col-span-2 px-3 py-2 bg-slate-800/50 border border-purple-500/30 text-slate-100 rounded-lg text-sm"
+                          className="w-full px-3 py-2 bg-slate-800/50 border border-purple-500/30 text-slate-100 rounded-lg text-sm"
                         />
-                        <input
-                          type="number"
-                          placeholder="Latitude *"
-                          value={stop.latitude}
-                          onChange={(e) => handleStopChange(index, 'latitude', e.target.value)}
-                          step="0.000001"
-                          required
-                          className="px-3 py-2 bg-slate-800/50 border border-purple-500/30 text-slate-100 rounded-lg text-sm"
-                        />
-                        <input
-                          type="number"
-                          placeholder="Longitude *"
-                          value={stop.longitude}
-                          onChange={(e) => handleStopChange(index, 'longitude', e.target.value)}
-                          step="0.000001"
-                          required
-                          className="px-3 py-2 bg-slate-800/50 border border-purple-500/30 text-slate-100 rounded-lg text-sm"
-                        />
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <input
+                            type="number"
+                            placeholder="Latitude *"
+                            value={stop.latitude}
+                            onChange={(e) => handleStopChange(index, 'latitude', e.target.value)}
+                            step="0.000001"
+                            required
+                            className="px-3 py-2 bg-slate-800/50 border border-purple-500/30 text-slate-100 rounded-lg text-sm"
+                          />
+                          <input
+                            type="number"
+                            placeholder="Longitude *"
+                            value={stop.longitude}
+                            onChange={(e) => handleStopChange(index, 'longitude', e.target.value)}
+                            step="0.000001"
+                            required
+                            className="px-3 py-2 bg-slate-800/50 border border-purple-500/30 text-slate-100 rounded-lg text-sm"
+                          />
+                        </div>
                         <input
                           type="number"
                           placeholder="Distance (km)"
@@ -711,18 +713,18 @@ function RoutesPage() {
               )}
 
               {/* Stats */}
-              <div className="grid grid-cols-3 gap-4 mb-4">
-                <div>
-                  <p className="text-xs text-slate-500 mb-1">Stops:</p>
-                  <p className="text-lg font-bold text-slate-100">{route.stops?.length || 0}</p>
+              <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
+                <div className="bg-slate-900/40 p-2 rounded-lg border border-slate-700/50">
+                  <p className="text-[10px] uppercase font-bold text-slate-500 mb-0.5">Stops</p>
+                  <p className="text-base font-bold text-slate-200">{route.stops?.length || 0}</p>
                 </div>
-                <div>
-                  <p className="text-xs text-slate-500 mb-1">Distance:</p>
-                  <p className="text-lg font-bold text-slate-100">{route.total_distance_km || 0} km</p>
+                <div className="bg-slate-900/40 p-2 rounded-lg border border-slate-700/50">
+                  <p className="text-[10px] uppercase font-bold text-slate-500 mb-0.5">Distance</p>
+                  <p className="text-base font-bold text-slate-200">{route.total_distance_km || 0} km</p>
                 </div>
-                <div>
-                  <p className="text-xs text-slate-500 mb-1">Duration:</p>
-                  <p className="text-lg font-bold text-slate-100">{route.estimated_duration_hours || 0} hrs</p>
+                <div className="bg-slate-900/40 p-2 rounded-lg border border-slate-700/50 col-span-2 lg:col-span-1">
+                  <p className="text-[10px] uppercase font-bold text-slate-500 mb-0.5">Duration</p>
+                  <p className="text-base font-bold text-slate-200">{route.estimated_duration_hours || 0} hrs</p>
                 </div>
               </div>
 

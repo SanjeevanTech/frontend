@@ -39,12 +39,12 @@ function TripsPage() {
   useEffect(() => {
     fetchScheduledTrips()
     fetchRecentTrips()
-    
+
     const interval = setInterval(() => {
       fetchScheduledTrips()
       fetchRecentTrips()
     }, 30000)
-    
+
     return () => clearInterval(interval)
   }, [selectedBus])
 
@@ -96,10 +96,10 @@ function TripsPage() {
         total_passengers: pt.count,
         total_unmatched: 0
       }))
-      
+
       const sevenDaysAgo = new Date()
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
-      
+
       let filteredTrips = allTrips.filter(trip => {
         try {
           if (!trip.start_time) return false
@@ -110,13 +110,13 @@ function TripsPage() {
           return false
         }
       })
-      
+
       if (selectedBus !== 'ALL') {
         filteredTrips = filteredTrips.filter(trip => trip.bus_id === selectedBus)
       }
-      
+
       filteredTrips.sort((a, b) => new Date(b.start_time) - new Date(a.start_time))
-      
+
       setRecentTrips(filteredTrips)
     } catch (error) {
       console.error('Error fetching trips:', error)
@@ -160,19 +160,20 @@ function TripsPage() {
 
   return (
     <div className="space-y-8">
-      <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 shadow-lg shadow-black/30">
+      <section className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5 sm:p-6 shadow-lg shadow-black/30">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h2 className="flex items-center gap-2 text-3xl font-semibold text-slate-100">
-              <span>🚌</span>
-              Trip Session Management
+            <h2 className="flex items-center gap-2 text-xl sm:text-3xl font-bold text-slate-100">
+              <span className="text-2xl sm:text-3xl">🚌</span>
+              Trip Management
             </h2>
-            <p className="mt-1 text-sm text-slate-400">
-              Live overview of today's operations and completed journeys during the last seven days.
+            <p className="mt-1 text-xs sm:text-sm text-slate-400">
+              Live overview of today's operations and completed journeys.
             </p>
           </div>
-          <div className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-2 text-sm text-slate-300">
-            Auto-refreshing every 30 seconds
+          <div className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-950/50 px-4 py-2 text-xs text-slate-400">
+            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            Auto-refreshing (30s)
           </div>
         </div>
       </section>
@@ -203,7 +204,7 @@ function TripsPage() {
               <span className="text-lg">🚌</span>
               Filter by Bus
             </label>
-            <BusSelector 
+            <BusSelector
               selectedBus={selectedBus}
               onBusChange={handleBusChange}
               showAll={true}
@@ -215,13 +216,13 @@ function TripsPage() {
         {/* Filter Modal */}
         {filterModalOpen && (
           <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-            <div 
+            <div
               className="absolute inset-0 bg-black/60 backdrop-blur-sm"
               onClick={() => setFilterModalOpen(false)}
             />
-            
-            <div className="relative w-full sm:max-w-lg bg-slate-900 border border-purple-500/30 rounded-t-3xl sm:rounded-2xl shadow-2xl shadow-purple-500/20 max-h-[90vh] overflow-y-auto">
-              <div className="sticky top-0 bg-slate-900/95 backdrop-blur-sm border-b border-purple-500/20 px-6 py-4 flex items-center justify-between">
+
+            <div className="relative w-full sm:max-w-md bg-slate-900 border border-purple-500/30 rounded-t-3xl sm:rounded-2xl shadow-2xl shadow-purple-500/20 max-h-[90vh] overflow-y-auto">
+              <div className="sticky top-0 bg-slate-900/95 backdrop-blur-sm border-b border-purple-500/20 px-6 py-5 flex items-center justify-between">
                 <h3 className="text-xl font-bold text-slate-100 flex items-center gap-2">
                   <svg className="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
@@ -230,7 +231,7 @@ function TripsPage() {
                 </h3>
                 <button
                   onClick={() => setFilterModalOpen(false)}
-                  className="p-2 hover:bg-slate-800 rounded-lg transition-colors"
+                  className="p-3 bg-slate-800/50 hover:bg-slate-800 rounded-xl transition-colors"
                 >
                   <svg className="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -244,28 +245,19 @@ function TripsPage() {
                     <span className="text-lg">🚌</span>
                     Select Bus
                   </label>
-                  <BusSelector 
+                  <BusSelector
                     selectedBus={tempBus}
                     onBusChange={setTempBus}
                     showAll={true}
                     label=""
                   />
                 </div>
-
-                <div className="rounded-xl bg-slate-800/30 border border-purple-500/20 p-4">
-                  <p className="text-xs text-slate-400 mb-2">Current Selection:</p>
-                  <div className="space-y-1 text-sm">
-                    <p className="text-slate-300">
-                      <span className="text-slate-500">Bus:</span> <span className="font-medium text-purple-400">{tempBus}</span>
-                    </p>
-                  </div>
-                </div>
               </div>
 
               <div className="sticky bottom-0 bg-slate-900/95 backdrop-blur-sm border-t border-purple-500/20 px-6 py-4 flex gap-3">
                 <button
                   onClick={resetFilters}
-                  className="flex-1 px-4 py-3 bg-slate-800/50 border border-purple-500/30 text-slate-300 rounded-lg hover:bg-slate-700/50 transition-all font-medium"
+                  className="flex-1 px-4 py-3 bg-slate-800/50 border border-purple-500/30 text-slate-300 rounded-lg transition-all font-medium"
                 >
                   Reset
                 </button>
@@ -280,24 +272,24 @@ function TripsPage() {
           </div>
         )}
 
-        <div className="grid gap-4 sm:grid-cols-3">
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5 shadow-inner shadow-black/20">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Trips (7 days)</p>
-            <p className="mt-3 text-3xl font-semibold text-slate-100">{recentTrips.length}</p>
-            <p className="mt-2 text-xs text-slate-500">Completed journeys captured from passenger data.</p>
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+          <div className="rounded-xl sm:rounded-2xl border border-slate-800 bg-slate-900/80 p-4 sm:p-5 shadow-inner shadow-black/20">
+            <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-slate-400">Trips (7 days)</p>
+            <p className="mt-1 sm:mt-3 text-xl sm:text-3xl font-bold text-slate-100">{recentTrips.length}</p>
+            <p className="mt-1 sm:mt-2 text-[10px] sm:text-xs text-slate-500 truncate">Previous week operations</p>
           </div>
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5 shadow-inner shadow-black/20">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Passengers moved</p>
-            <p className="mt-3 text-3xl font-semibold text-slate-100">{totalPassengers}</p>
-            <p className="mt-2 text-xs text-slate-500">Includes only journeys with both entry and exit.</p>
+          <div className="rounded-xl sm:rounded-2xl border border-slate-800 bg-slate-900/80 p-4 sm:p-5 shadow-inner shadow-black/20">
+            <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-slate-400">Total People</p>
+            <p className="mt-1 sm:mt-3 text-xl sm:text-3xl font-bold text-slate-100">{totalPassengers}</p>
+            <p className="mt-1 sm:mt-2 text-[10px] sm:text-xs text-slate-500 truncate">Successful matches only</p>
           </div>
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5 shadow-inner shadow-black/20">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Latest trip</p>
-            <p className="mt-3 text-xl font-semibold text-slate-100">
-              {latestTrip ? format(new Date(latestTrip.start_time), 'MMM dd') : '—'}
+          <div className="rounded-xl sm:rounded-2xl border border-slate-800 bg-slate-900/80 p-4 sm:p-5 shadow-inner shadow-black/20 col-span-2 lg:col-span-1">
+            <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-slate-400">Latest trip</p>
+            <p className="mt-1 sm:mt-3 text-lg sm:text-xl font-bold text-slate-100 truncate">
+              {latestTrip ? format(new Date(latestTrip.start_time), 'MMM dd, HH:mm') : '—'}
             </p>
-            <p className="mt-2 text-xs text-slate-500">
-              {latestTrip ? latestTrip.route_name : 'Awaiting new journey data.'}
+            <p className="mt-1 sm:mt-2 text-[10px] sm:text-xs text-slate-500 truncate">
+              {latestTrip ? latestTrip.route_name : 'No recent journeys.'}
             </p>
           </div>
         </div>
@@ -386,34 +378,34 @@ function TripsPage() {
         </div>
 
         {recentTrips.length ? (
-          <div className="overflow-hidden rounded-2xl border border-slate-800">
-            <div className="max-h-[520px] overflow-auto">
-              <table className="min-w-full divide-y divide-slate-800 text-sm">
-                <thead className="sticky top-0 bg-slate-950/80 text-left text-xs uppercase tracking-wide text-slate-400">
+          <div className="overflow-x-auto rounded-xl sm:rounded-2xl border border-slate-800">
+            <div className="inline-block min-w-full align-middle">
+              <table className="min-w-[900px] w-full divide-y divide-slate-800/50 text-sm">
+                <thead className="bg-slate-950/80 text-left text-xs uppercase tracking-wide text-slate-400">
                   <tr>
-                    <th className="px-5 py-3">Bus</th>
-                    <th className="px-5 py-3">Route</th>
-                    <th className="px-5 py-3">Trip ID</th>
-                    <th className="px-5 py-3">Start</th>
-                    <th className="px-5 py-3">End</th>
-                    <th className="px-5 py-3">Duration</th>
-                    <th className="px-5 py-3 text-right">Passengers</th>
+                    <th className="px-5 py-4 font-semibold">Bus</th>
+                    <th className="px-5 py-4 font-semibold">Route</th>
+                    <th className="px-5 py-4 font-semibold">Trip ID</th>
+                    <th className="px-5 py-4 font-semibold">Start Time</th>
+                    <th className="px-5 py-4 font-semibold">End Time</th>
+                    <th className="px-5 py-4 font-semibold">Duration</th>
+                    <th className="px-5 py-4 font-semibold text-right">Count</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800 bg-slate-900/60 text-slate-200">
                   {recentTrips.map((trip, index) => (
-                    <tr key={`${trip.trip_id}-${index}`} className="transition-colors hover:bg-slate-900/80">
-                      <td className="px-5 py-4 font-semibold text-slate-100">{trip.bus_id}</td>
-                      <td className="px-5 py-4 text-slate-300">{trip.route_name}</td>
-                      <td className="px-5 py-4 text-xs font-mono text-slate-500">{trip.trip_id}</td>
-                      <td className="px-5 py-4 text-slate-300">{formatDateTime(trip.start_time)}</td>
-                      <td className="px-5 py-4 text-slate-300">
-                        {trip.end_time ? formatDateTime(trip.end_time) : '—'}
+                    <tr key={`${trip.trip_id}-${index}`} className="transition-colors hover:bg-slate-800/30 leading-relaxed">
+                      <td className="px-5 py-4 whitespace-nowrap font-bold text-purple-400">{trip.bus_id}</td>
+                      <td className="px-5 py-4 whitespace-nowrap text-slate-300">{trip.route_name}</td>
+                      <td className="px-5 py-4 whitespace-nowrap text-xs font-mono text-slate-500">{trip.trip_id}</td>
+                      <td className="px-5 py-4 whitespace-nowrap text-slate-300 font-mono text-xs">{formatDateTime(trip.start_time)}</td>
+                      <td className="px-5 py-4 whitespace-nowrap text-slate-300 font-mono text-xs">
+                        {trip.end_time ? formatDateTime(trip.end_time) : '---'}
                       </td>
-                      <td className="px-5 py-4 text-slate-300">
+                      <td className="px-5 py-4 whitespace-nowrap text-slate-400 text-xs">
                         {formatDuration(trip.start_time, trip.end_time)}
                       </td>
-                      <td className="px-5 py-4 text-right font-semibold text-slate-100">
+                      <td className="px-5 py-4 whitespace-nowrap text-right font-bold text-slate-100">
                         {trip.total_passengers || 0}
                       </td>
                     </tr>

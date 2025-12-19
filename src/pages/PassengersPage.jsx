@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import axios from '../utils/axios'
 import { format, parseISO } from 'date-fns'
 import { toast } from 'react-hot-toast'
@@ -24,6 +24,8 @@ function PassengersPage() {
   const [totalPassengers, setTotalPassengers] = useState(0)
   const [locationNames, setLocationNames] = useState({})
   const [filterModalOpen, setFilterModalOpen] = useState(false)
+  const [isTripOpen, setIsTripOpen] = useState(false)
+  const tripDropdownRef = useRef(null)
   const [tempFilters, setTempFilters] = useState({
     bus: 'ALL',
     date: new Date(),
@@ -31,26 +33,7 @@ function PassengersPage() {
   })
   const itemsPerPage = 50
 
-  useEffect(() => {
-    fetchPassengers()
-  }, [selectedDate, selectedTrip, selectedBus, currentPage])
-
-  useEffect(() => {
-    fetchAvailableTrips()
-  }, [selectedDate, selectedBus])
-
-  const handleBusChange = (busId) => {
-    setSelectedBus(busId)
-    localStorage.setItem('selectedBusPassengers', busId)
-    setCurrentPage(0)
-  }
-
-  const handlePageChange = (newPage) => {
-    setCurrentPage(newPage)
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-  }
-
-  const fetchPassengers = async () => {
+  const fetchPassengers = useCallback(async () => {
     try {
       setLoading(true)
       const dateStr = format(selectedDate, 'yyyy-MM-dd')
@@ -83,6 +66,33 @@ function PassengersPage() {
     } finally {
       setLoading(false)
     }
+  }, [selectedDate, selectedBus, selectedTrip, currentPage, itemsPerPage]) // Added itemsPerPage to dependencies
+
+  useEffect(() => {
+    fetchPassengers()
+
+    const handleClickOutside = (event) => {
+      if (tripDropdownRef.current && !tripDropdownRef.current.contains(event.target)) {
+        setIsTripOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [fetchPassengers]) // fetchPassengers is now memoized with useCallback
+
+  useEffect(() => {
+    fetchAvailableTrips()
+  }, [selectedDate, selectedBus])
+
+  const handleBusChange = (busId) => {
+    setSelectedBus(busId)
+    localStorage.setItem('selectedBusPassengers', busId)
+    setCurrentPage(0)
+  }
+
+  const handlePageChange = (newPage) => {
+    setCurrentPage(newPage)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   const fetchAvailableTrips = async () => {
@@ -265,7 +275,7 @@ function PassengersPage() {
   return (
     <div className="space-y-6">
       {/* Mobile Filter Button */}
-      <div className="flex items-center justify-between gap-4 lg:hidden">
+      <div className="flex flex-wrap items-center justify-between gap-3 lg:hidden">
         <button
           onClick={openFilterModal}
           className="flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg shadow-lg shadow-purple-500/50 hover:shadow-xl transition-all font-medium"
@@ -354,9 +364,9 @@ function PassengersPage() {
                 // Create display name with both start and end times
                 let displayName = `Trip ${tripNumber}`
                 if (boardingTime && endTime) {
-                  displayName = `Trip ${tripNumber} - ${boardingTime} → ${endTime}`
+                  displayName = `T${tripNumber}: ${boardingTime}-${endTime}`
                 } else if (boardingTime) {
-                  displayName = `Trip ${tripNumber} - ${boardingTime}`
+                  displayName = `T${tripNumber}: ${boardingTime}`
                 }
 
                 return (
@@ -396,9 +406,9 @@ function PassengersPage() {
           />
 
           {/* Modal */}
-          <div className="relative w-full sm:max-w-lg bg-slate-900 border border-purple-500/30 rounded-t-3xl sm:rounded-2xl shadow-2xl shadow-purple-500/20 max-h-[90vh] overflow-y-auto">
+          <div className="relative w-full sm:max-w-xl bg-slate-900 border border-purple-500/30 rounded-t-3xl sm:rounded-2xl shadow-2xl shadow-purple-500/20 max-h-[90vh]">
             {/* Header */}
-            <div className="sticky top-0 bg-slate-900/95 backdrop-blur-sm border-b border-purple-500/20 px-6 py-4 flex items-center justify-between">
+            <div className="sticky top-0 bg-slate-900/95 backdrop-blur-sm border-b border-purple-500/20 px-6 py-5 flex items-center justify-between">
               <h3 className="text-xl font-bold text-slate-100 flex items-center gap-2">
                 <svg className="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
@@ -407,16 +417,16 @@ function PassengersPage() {
               </h3>
               <button
                 onClick={() => setFilterModalOpen(false)}
-                className="p-2 hover:bg-slate-800 rounded-lg transition-colors"
+                className="p-2 bg-slate-800/50 hover:bg-slate-800 rounded-lg transition-colors"
               >
-                <svg className="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
 
-            {/* Content */}
-            <div className="p-6 space-y-6">
+            {/* Scrollable Content Area */}
+            <div className="overflow-y-auto max-h-[60vh] px-6 py-6 space-y-6 custom-scrollbar">
               {/* Bus Filter */}
               <div className="space-y-2">
                 <label className="flex items-center gap-2 text-sm font-semibold text-slate-300">
@@ -437,61 +447,85 @@ function PassengersPage() {
                   <span className="text-lg">📅</span>
                   Select Date
                 </label>
-                <input
-                  type="date"
-                  value={format(tempFilters.date, 'yyyy-MM-dd')}
-                  onChange={(e) => setTempFilters(prev => ({ ...prev, date: new Date(e.target.value) }))}
-                  max={format(new Date(), 'yyyy-MM-dd')}
-                  className="w-full px-4 py-3 bg-slate-800/50 border border-purple-500/30 text-slate-100 rounded-lg focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 transition-all [color-scheme:dark]"
-                  style={{ colorScheme: 'dark' }}
-                />
+                <div className="relative">
+                  <input
+                    type="date"
+                    value={format(tempFilters.date, 'yyyy-MM-dd')}
+                    max={format(new Date(), 'yyyy-MM-dd')}
+                    onChange={(e) => setTempFilters(prev => ({ ...prev, date: new Date(e.target.value) }))}
+                    className="w-full h-12 rounded-lg border border-purple-500/30 bg-slate-800/50 px-4 py-3 text-sm text-slate-100 shadow-lg shadow-purple-500/10 focus:border-purple-500 focus:outline-none transition-all [color-scheme:dark]"
+                  />
+                </div>
               </div>
 
               {/* Trip Filter */}
-              {availableTrips && availableTrips.length > 0 && (
-                <div className="space-y-2">
-                  <label className="flex items-center gap-2 text-sm font-semibold text-slate-300">
-                    <span className="text-lg">🎯</span>
-                    Select Trip
-                  </label>
-                  <select
-                    value={tempFilters.trip}
-                    onChange={(e) => setTempFilters(prev => ({ ...prev, trip: e.target.value }))}
-                    className="w-full px-4 py-3 bg-slate-800/50 border border-purple-500/30 text-slate-100 rounded-lg focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 transition-all cursor-pointer"
+              <div className="space-y-2" ref={tripDropdownRef}>
+                <label className="flex items-center gap-2 text-sm font-semibold text-slate-300">
+                  <span className="text-lg">🎯</span>
+                  Select Trip
+                </label>
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setIsTripOpen(!isTripOpen)}
+                    className="w-full h-12 flex items-center justify-between px-4 rounded-lg border border-purple-500/30 bg-slate-800/50 text-sm text-slate-100 shadow-lg shadow-purple-500/10 focus:border-purple-500 focus:outline-none transition-all hover:bg-slate-800/70"
                   >
-                    <option value="ALL" className="bg-slate-900 text-slate-100">All trips ({availableTrips.length})</option>
-                    {availableTrips.map((trip, index) => {
-                      const tripId = typeof trip === 'string' ? trip : trip.trip_id
-                      // Use boarding_start_time or departure_time directly instead of start_time to avoid timezone issues
-                      const boardingTime = typeof trip === 'object'
-                        ? (trip.boarding_start_time || trip.departure_time || '')
-                        : ''
-                      // Get end time from end_time or estimated_arrival_time
-                      const endTime = typeof trip === 'object'
-                        ? (trip.end_time || trip.estimated_arrival_time || '')
-                        : ''
+                    <span className="truncate">
+                      {tempFilters.trip === 'ALL'
+                        ? (availableTrips ? `All trips (${availableTrips.length})` : 'All trips')
+                        : `Trip ${tempFilters.trip}`}
+                    </span>
+                    <span className={`transition-transform duration-200 ${isTripOpen ? 'rotate-180' : ''}`}>
+                      <svg className="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </span>
+                  </button>
 
-                      // Extract trip number from trip_id
-                      const tripMatch = tripId.match(/_(\d+)$/)
-                      const tripNumber = tripMatch ? parseInt(tripMatch[1]) + 1 : index + 1
+                  {isTripOpen && availableTrips && availableTrips.length > 0 && (
+                    <div className="absolute z-50 w-full mt-2 rounded-xl border border-slate-700 bg-slate-900 shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-150 origin-top">
+                      <div className="max-h-60 overflow-y-auto custom-scrollbar">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setTempFilters(prev => ({ ...prev, trip: 'ALL' }))
+                            setIsTripOpen(false)
+                          }}
+                          className={`w-full text-left px-4 py-3 text-sm transition-colors hover:bg-purple-500/10 ${tempFilters.trip === 'ALL' ? 'bg-purple-500/20 text-purple-300' : 'text-slate-300'}`}
+                        >
+                          All trips ({availableTrips.length})
+                        </button>
+                        {availableTrips.map((trip, index) => {
+                          const tripId = typeof trip === 'string' ? trip : trip.trip_id
+                          const isSelected = tempFilters.trip === tripId
 
-                      // Create display name with both start and end times
-                      let displayName = `Trip ${tripNumber}`
-                      if (boardingTime && endTime) {
-                        displayName = `Trip ${tripNumber} - ${boardingTime} → ${endTime}`
-                      } else if (boardingTime) {
-                        displayName = `Trip ${tripNumber} - ${boardingTime}`
-                      }
+                          let displayName = tripId
+                          if (typeof trip === 'object') {
+                            const tripMatch = tripId.match(/_(\d+)$/)
+                            const tripNumber = tripMatch ? parseInt(tripMatch[1]) + 1 : index + 1
+                            const timeInfo = trip.boarding_start_time || trip.departure_time || ''
+                            displayName = timeInfo ? `T${tripNumber}: ${timeInfo}` : `Trip ${tripNumber}`
+                          }
 
-                      return (
-                        <option key={`${tripId}_${index}`} value={tripId} className="bg-slate-900 text-slate-100">
-                          {displayName}
-                        </option>
-                      )
-                    })}
-                  </select>
+                          return (
+                            <button
+                              key={`${tripId}_${index}`}
+                              type="button"
+                              onClick={() => {
+                                setTempFilters(prev => ({ ...prev, trip: tripId }))
+                                setIsTripOpen(false)
+                              }}
+                              className={`w-full text-left px-4 py-3 text-sm transition-colors hover:bg-purple-500/10 ${isSelected ? 'bg-purple-500/20 text-purple-300' : 'text-slate-300'}`}
+                            >
+                              {displayName}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
-              )}
+              </div>
 
               {/* Active Filters Summary */}
               <div className="rounded-xl bg-slate-800/30 border border-purple-500/20 p-4">
@@ -532,15 +566,16 @@ function PassengersPage() {
       )}
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-3">
-        {statCards.map((card) => (
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+        {statCards.map((card, idx) => (
           <div
             key={card.label}
-            className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 shadow-inner shadow-black/20"
+            className={`rounded-xl sm:rounded-2xl border border-slate-800 bg-slate-900/60 p-4 sm:p-5 shadow-inner shadow-black/20 ${idx === 2 ? 'sm:col-span-2 lg:col-span-1' : ''
+              }`}
           >
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{card.label}</p>
-            <p className="mt-2 text-3xl font-semibold text-slate-100">{card.value}</p>
-            <p className="mt-1 text-xs text-slate-500">{card.helper}</p>
+            <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wide text-slate-400 truncate">{card.label}</p>
+            <p className="mt-1 sm:mt-2 text-xl sm:text-3xl font-bold text-slate-100">{card.value}</p>
+            <p className="mt-0.5 sm:mt-1 text-[10px] sm:text-xs text-slate-500 truncate">{card.helper}</p>
           </div>
         ))}
       </div>
@@ -550,104 +585,95 @@ function PassengersPage() {
           <LoadingSpinner size="xl" text="Loading passenger data..." />
         </div>
       ) : filteredPassengers.length === 0 ? (
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-12 text-center">
-          <div className="text-5xl mb-3">📭</div>
-          <p className="text-lg text-slate-400">
+        <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-8 sm:p-12 text-center">
+          <div className="text-4xl sm:text-5xl mb-3">📭</div>
+          <p className="text-base sm:text-lg text-slate-400 break-words max-w-md mx-auto">
             No passenger data found for the selected {selectedBus === 'ALL' ? 'filters' : `bus (${selectedBus})`}
           </p>
         </div>
       ) : (
         <>
           {/* Passenger Table */}
-          <div className="overflow-x-auto rounded-2xl border border-slate-800 bg-slate-900/60 shadow-inner shadow-black/20">
-            <table className="min-w-full">
-              <thead className="bg-slate-950/70 text-left text-xs uppercase tracking-wide text-slate-400">
-                <tr>
-                  {[
-                    'Bus ID',
-                    'Route',
-                    'Passenger ID',
-                    'Entry time',
-                    'Entry location',
-                    'Exit time',
-                    'Exit location',
-                    'Duration (min)',
-                    'Distance (km)',
-                    'Price (Rs.)',
-                    'Similarity'
-                  ].map((label) => (
-                    <th key={label} className="px-4 py-3 font-semibold">{label}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800 text-sm text-slate-200">
-                {filteredPassengers.map((passenger, index) => (
-                  <tr key={passenger.id || index} className="hover:bg-slate-900/80">
-                    <td className="px-4 py-3 font-semibold text-indigo-300">{passenger.bus_id || 'N/A'}</td>
-                    <td className="px-4 py-3 text-slate-300">{passenger.route_name || 'N/A'}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <span>{passenger.id}</span>
-                        {passenger.is_season_ticket && (
-                          <span className="text-base" title="Season Ticket Holder">🎫</span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-slate-300">{formatDateTime(passenger.entry_timestamp)}</td>
-                    <td className="px-4 py-3">
-                      <button
-                        className="w-full text-left rounded-lg border border-transparent px-3 py-2 transition hover:border-indigo-400 hover:bg-indigo-500/10"
-                        onClick={() => openInGoogleMaps(passenger.entryLocation)}
-                        title="Open in Google Maps"
-                      >
-                        <div className="font-medium text-indigo-300 truncate max-w-[140px] sm:max-w-[200px]">
-                          {passenger.entryLocation?.location_name || locationNames[`entry-${index}`] || 'Locating…'}
-                        </div>
-                        <div className="text-xs text-slate-500">{formatLocation(passenger.entryLocation)}</div>
-                      </button>
-                    </td>
-                    <td className="px-4 py-3 text-slate-300">{formatDateTime(passenger.exit_timestamp)}</td>
-                    <td className="px-4 py-3">
-                      <button
-                        className="w-full text-left rounded-lg border border-transparent px-3 py-2 transition hover:border-indigo-400 hover:bg-indigo-500/10"
-                        onClick={() => openInGoogleMaps(passenger.exitLocation)}
-                        title="Open in Google Maps"
-                      >
-                        <div className="font-medium text-indigo-300 truncate max-w-[140px] sm:max-w-[200px]">
-                          {passenger.exitLocation?.location_name || locationNames[`exit-${index}`] || 'Locating…'}
-                        </div>
-                        <div className="text-xs text-slate-500">{formatLocation(passenger.exitLocation)}</div>
-                      </button>
-                    </td>
-                    <td className="px-4 py-3 text-slate-300">{passenger.journey_duration_minutes?.toFixed(1) || 'N/A'}</td>
-                    <td className="px-4 py-3 text-slate-300">
-                      {passenger.distance_info?.distance_km?.toFixed(2) || 'N/A'}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="font-semibold text-emerald-300">Rs. {passenger.price?.toFixed(2) || '0.00'}</div>
-                      {passenger.is_season_ticket && passenger.price === 0 && (
-                        <div className="text-xs text-slate-500">Season ticket</div>
-                      )}
-                      {!passenger.is_season_ticket && getStageNumber(passenger) > 0 && (
-                        <div className="text-xs text-slate-500">Stage {getStageNumber(passenger)}</div>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${passenger.similarity_score > 0.9
-                          ? 'bg-emerald-500/10 text-emerald-300'
-                          : passenger.similarity_score > 0.8
-                            ? 'bg-amber-500/10 text-amber-300'
-                            : 'bg-rose-500/10 text-rose-300'
-                          }`}
-                      >
-                        {(passenger.similarity_score * 100).toFixed(1)}%
-                      </span>
-                    </td>
+          <div className="w-full overflow-x-auto rounded-xl sm:rounded-2xl border border-slate-800 bg-slate-900/60 shadow-inner shadow-black/20">
+            <div className="inline-block min-w-full align-middle">
+              <table className="min-w-[1240px] w-full table-fixed lg:table-auto border-collapse">
+                <thead className="bg-slate-950/70 text-left text-xs uppercase tracking-wide text-slate-400">
+                  <tr>
+                    <th className="w-24 px-4 py-4 font-semibold">Bus ID</th>
+                    <th className="w-32 px-4 py-4 font-semibold">Route</th>
+                    <th className="w-32 px-4 py-4 font-semibold">Passenger ID</th>
+                    <th className="w-24 px-4 py-4 font-semibold">Entry Time</th>
+                    <th className="w-56 px-4 py-4 font-semibold">Entry Location</th>
+                    <th className="w-24 px-4 py-4 font-semibold">Exit Time</th>
+                    <th className="w-56 px-4 py-4 font-semibold">Exit Location</th>
+                    <th className="w-24 px-4 py-4 font-semibold hidden md:table-cell">Dur (Min)</th>
+                    <th className="w-24 px-4 py-4 font-semibold">Dist (Km)</th>
+                    <th className="w-28 px-4 py-4 font-semibold">Price</th>
+                    <th className="w-24 px-4 py-4 font-semibold hidden lg:table-cell">Similarity</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-slate-800/50 text-sm text-slate-200">
+                  {filteredPassengers.map((passenger, index) => (
+                    <tr key={passenger.id || index} className="hover:bg-slate-800/30 transition-colors">
+                      <td className="px-4 py-4 whitespace-nowrap font-medium text-purple-400">{passenger.bus_id || '---'}</td>
+                      <td className="px-4 py-4 whitespace-nowrap text-slate-300">{passenger.route_name || 'Generic'}</td>
+                      <td className="px-4 py-4 whitespace-nowrap">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono">{passenger.id}</span>
+                          {passenger.is_season_ticket && (
+                            <span className="text-base text-amber-400" title="Season Ticket Holder">🎫</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-slate-300 font-mono text-xs">{formatDateTime(passenger.entry_timestamp)}</td>
+                      <td className="px-4 py-4">
+                        <button
+                          className="w-full text-left rounded-lg bg-slate-800/30 border border-slate-700/50 px-3 py-2 transition hover:border-purple-500/50 hover:bg-purple-500/5"
+                          onClick={() => openInGoogleMaps(passenger.entryLocation)}
+                        >
+                          <div className="font-medium text-slate-200 truncate" title={passenger.entryLocation?.location_name}>
+                            {passenger.entryLocation?.location_name || locationNames[`entry-${index}`] || 'Locating…'}
+                          </div>
+                          <div className="text-[10px] text-slate-500 font-mono mt-0.5">{formatLocation(passenger.entryLocation)}</div>
+                        </button>
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-slate-300 font-mono text-xs">{formatDateTime(passenger.exit_timestamp)}</td>
+                      <td className="px-4 py-4">
+                        <button
+                          className="w-full text-left rounded-lg bg-slate-800/30 border border-slate-700/50 px-3 py-2 transition hover:border-purple-500/50 hover:bg-purple-500/5"
+                          onClick={() => openInGoogleMaps(passenger.exitLocation)}
+                        >
+                          <div className="font-medium text-slate-200 truncate" title={passenger.exitLocation?.location_name}>
+                            {passenger.exitLocation?.location_name || locationNames[`exit-${index}`] || 'Locating…'}
+                          </div>
+                          <div className="text-[10px] text-slate-500 font-mono mt-0.5">{formatLocation(passenger.exitLocation)}</div>
+                        </button>
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-slate-400 hidden md:table-cell">{passenger.journey_duration_minutes?.toFixed(1) || '0'}</td>
+                      <td className="px-4 py-4 whitespace-nowrap text-slate-300 font-medium">
+                        {passenger.distance_info?.distance_km?.toFixed(2) || '0.00'} km
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap">
+                        <div className="font-bold text-emerald-400 font-mono">Rs. {passenger.price?.toFixed(2) || '0.00'}</div>
+                        {passenger.is_season_ticket && <div className="text-[10px] text-amber-400/70">Season</div>}
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap hidden lg:table-cell">
+                        <span
+                          className={`inline-flex rounded-full px-2.5 py-0.5 text-[10px] font-bold ${passenger.similarity_score > 0.9
+                            ? 'bg-emerald-500/10 text-emerald-400'
+                            : passenger.similarity_score > 0.8
+                              ? 'bg-amber-500/10 text-amber-400'
+                              : 'bg-rose-500/10 text-rose-400'
+                            }`}
+                        >
+                          {(passenger.similarity_score * 100).toFixed(1)}%
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
 
           <div className="mt-6">

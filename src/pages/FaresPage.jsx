@@ -43,14 +43,14 @@ function FaresPage() {
         fare: parseFloat(newFare),
         updated_by: 'admin'
       })
-      
+
       toast.success('Fare updated successfully!')
-      
+
       // Update local state instead of refetching
-      setStages(prev => prev.map(stage => 
+      setStages(prev => prev.map(stage =>
         stage.stage_number === stageNumber ? { ...stage, fare: parseFloat(newFare) } : stage
       ))
-      
+
       setEditingStage(null)
     } catch (error) {
       toast.error('Failed to update fare: ' + error.message)
@@ -94,36 +94,36 @@ function FaresPage() {
         <p className="text-slate-400 mt-2">NTC July 2025 Normal Fare Structure</p>
       </header>
 
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="flex-1 flex flex-col sm:flex-row gap-2">
-          <label className="text-sm font-medium text-slate-300 self-center whitespace-nowrap">Search Stage:</label>
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col sm:flex-row gap-2">
           <input
             type="number"
-            placeholder="Enter stage number..."
+            placeholder="Search stage number..."
             value={searchStage}
             onChange={(e) => {
               setSearchStage(e.target.value)
               setCurrentPage(1)
             }}
-            className="flex-1 px-4 py-3 bg-slate-800/50 border border-purple-500/30 text-slate-100 rounded-lg focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 transition-all placeholder:text-slate-500"
+            className="flex-1 px-4 py-3 bg-slate-800/50 border border-purple-500/30 text-slate-100 rounded-xl focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 transition-all placeholder:text-slate-500"
           />
-          <button 
-            onClick={() => {
-              setSearchStage('')
-              setCurrentPage(1)
-            }}
-            className="px-4 py-3 bg-slate-800/50 border border-purple-500/30 text-slate-300 font-medium rounded-lg hover:bg-slate-700/50 transition-all whitespace-nowrap"
-          >
-            Show All
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => {
+                setSearchStage('')
+                setCurrentPage(1)
+              }}
+              className="flex-1 sm:flex-none px-4 py-3 bg-slate-800/50 border border-purple-500/30 text-slate-300 font-medium rounded-xl hover:bg-slate-700/50 transition-all whitespace-nowrap"
+            >
+              Show All
+            </button>
+            <button
+              onClick={fetchStages}
+              className="flex-1 sm:flex-none px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-semibold rounded-xl shadow-lg shadow-purple-500/50 hover:shadow-xl transition-all whitespace-nowrap"
+            >
+              🔄 Refresh
+            </button>
+          </div>
         </div>
-        
-        <button 
-          onClick={fetchStages}
-          className="px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-semibold rounded-lg shadow-lg shadow-purple-500/50 hover:shadow-xl transition-all whitespace-nowrap"
-        >
-          🔄 Refresh
-        </button>
       </div>
 
       {/* Mobile Card View */}
@@ -135,7 +135,7 @@ function FaresPage() {
                 Stage #{stage.stage_number}
               </span>
               {editingStage !== stage.stage_number && (
-                <button 
+                <button
                   onClick={() => handleEdit(stage)}
                   className="px-3 py-1.5 text-sm bg-blue-500/20 text-blue-300 border border-blue-500/30 rounded-lg hover:bg-blue-500/30 transition-all"
                 >
@@ -143,7 +143,7 @@ function FaresPage() {
                 </button>
               )}
             </div>
-            
+
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <span className="text-slate-400">Distance:</span>
@@ -151,7 +151,7 @@ function FaresPage() {
                   {((stage.stage_number - 1) * 3.5).toFixed(1)} - {(stage.stage_number * 3.5).toFixed(1)} km
                 </span>
               </div>
-              
+
               <div className="flex justify-between items-center">
                 <span className="text-slate-400">Fare:</span>
                 {editingStage === stage.stage_number ? (
@@ -170,13 +170,13 @@ function FaresPage() {
 
             {editingStage === stage.stage_number && (
               <div className="flex gap-2 mt-3">
-                <button 
+                <button
                   onClick={() => handleSave(stage.stage_number)}
                   className="flex-1 px-3 py-2 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-lg shadow-lg shadow-emerald-500/30 hover:shadow-xl transition-all text-sm font-semibold"
                 >
                   ✓ Save
                 </button>
-                <button 
+                <button
                   onClick={handleCancel}
                   className="flex-1 px-3 py-2 bg-slate-700/50 border border-slate-600 text-slate-300 rounded-lg hover:bg-slate-600/50 transition-all text-sm font-medium"
                 >
@@ -222,13 +222,13 @@ function FaresPage() {
                 <td className="px-6 py-4">
                   {editingStage === stage.stage_number ? (
                     <div className="flex gap-2">
-                      <button 
+                      <button
                         onClick={() => handleSave(stage.stage_number)}
                         className="px-4 py-2 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-lg shadow-lg shadow-emerald-500/30 hover:shadow-xl transition-all font-semibold"
                       >
                         ✓ Save
                       </button>
-                      <button 
+                      <button
                         onClick={handleCancel}
                         className="px-4 py-2 bg-slate-700/50 border border-slate-600 text-slate-300 rounded-lg hover:bg-slate-600/50 transition-all font-medium"
                       >
@@ -236,7 +236,7 @@ function FaresPage() {
                       </button>
                     </div>
                   ) : (
-                    <button 
+                    <button
                       onClick={() => handleEdit(stage)}
                       className="px-4 py-2 bg-blue-500/20 text-blue-300 border border-blue-500/30 rounded-lg hover:bg-blue-500/30 transition-all font-medium"
                     >
@@ -264,14 +264,14 @@ function FaresPage() {
             </div>
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-              <button 
+              <button
                 onClick={() => handlePageChange(currentPage - 1)}
                 disabled={currentPage === 1}
                 className="w-full sm:w-auto px-6 py-3 bg-slate-800/50 border border-purple-500/30 text-purple-300 font-bold rounded-lg hover:bg-slate-700/50 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
               >
                 ← Previous
               </button>
-              
+
               <div className="flex flex-wrap items-center justify-center gap-2">
                 {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                   let pageNum
@@ -284,24 +284,23 @@ function FaresPage() {
                   } else {
                     pageNum = currentPage - 2 + i
                   }
-                  
+
                   return (
                     <button
                       key={pageNum}
                       onClick={() => handlePageChange(pageNum)}
-                      className={`min-w-[44px] px-4 py-3 rounded-lg transition-all font-bold ${
-                        currentPage === pageNum
+                      className={`min-w-[44px] px-4 py-3 rounded-lg transition-all font-bold ${currentPage === pageNum
                           ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white scale-110 shadow-lg shadow-purple-500/50'
                           : 'bg-slate-800/50 border border-purple-500/30 text-slate-300 hover:bg-slate-700/50'
-                      }`}
+                        }`}
                     >
                       {pageNum}
                     </button>
                   )
                 })}
               </div>
-              
-              <button 
+
+              <button
                 onClick={() => handlePageChange(currentPage + 1)}
                 disabled={currentPage === totalPages}
                 className="w-full sm:w-auto px-6 py-3 bg-slate-800/50 border border-pink-500/30 text-pink-300 font-bold rounded-lg hover:bg-slate-700/50 disabled:opacity-40 disabled:cursor-not-allowed transition-all"

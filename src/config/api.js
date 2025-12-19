@@ -13,18 +13,21 @@ export const API = {
   python: {
     extractFace: `${PYTHON_API_URL}/api/extract-face-embedding`,
   },
-  
+
   // Node.js Backend endpoints (use relative paths for Vite proxy)
   node: {
     // Bus Routes
     busRoutes: '/api/bus-routes',
     busSchedule: (busId) => `/api/bus-schedule/${busId}`,
     saveBusSchedule: '/api/bus-schedule',
-    
+
     // Power Management (moved from Python)
     buses: '/api/power-config',              // GET all buses
     powerConfig: '/api/power-config',        // POST/DELETE power config
     syncPowerConfig: '/api/power-config/sync',
+
+    // Contractors
+    contractors: '/api/contractors',
   }
 };
 

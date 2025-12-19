@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import axios from '../utils/axios'
 import { format, parseISO } from 'date-fns'
 import { toast } from 'react-hot-toast'
@@ -18,6 +18,8 @@ function UnmatchedPage() {
   const [currentPage, setCurrentPage] = useState(0)
   const [totalUnmatched, setTotalUnmatched] = useState(0)
   const [filterModalOpen, setFilterModalOpen] = useState(false)
+  const [isTripOpen, setIsTripOpen] = useState(false)
+  const tripDropdownRef = useRef(null)
   const [tempFilters, setTempFilters] = useState({
     bus: 'ALL',
     date: new Date(),
@@ -30,15 +32,7 @@ function UnmatchedPage() {
     localStorage.setItem('selectedBusPassengers', busId)
   }
 
-  useEffect(() => {
-    fetchUnmatched()
-  }, [selectedDate, filterType, selectedBus, selectedTrip, currentPage])
-
-  useEffect(() => {
-    setCurrentPage(0)
-  }, [selectedDate, filterType, selectedBus, selectedTrip])
-
-  const fetchUnmatched = async () => {
+  const fetchUnmatched = useCallback(async () => {
     try {
       setLoading(true)
       const dateStr = format(selectedDate, 'yyyy-MM-dd')
@@ -66,7 +60,23 @@ function UnmatchedPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [selectedDate, filterType, selectedBus, selectedTrip, currentPage, itemsPerPage])
+
+  useEffect(() => {
+    fetchUnmatched()
+
+    const handleClickOutside = (event) => {
+      if (tripDropdownRef.current && !tripDropdownRef.current.contains(event.target)) {
+        setIsTripOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [selectedDate, filterType, selectedBus, selectedTrip, currentPage, fetchUnmatched])
+
+  useEffect(() => {
+    setCurrentPage(0)
+  }, [selectedDate, filterType, selectedBus, selectedTrip])
 
   const fetchAvailableTrips = async () => {
     try {
@@ -143,7 +153,7 @@ function UnmatchedPage() {
   return (
     <div className="space-y-6">
       {/* Mobile Filter Button */}
-      <div className="flex items-center justify-between gap-4 lg:hidden">
+      <div className="flex flex-wrap items-center justify-between gap-3 lg:hidden">
         <button
           onClick={openFilterModal}
           className="flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg shadow-lg shadow-purple-500/50 hover:shadow-xl transition-all font-medium"
@@ -232,9 +242,9 @@ function UnmatchedPage() {
                 // Create display name with both start and end times
                 let displayName = `Trip ${tripNumber}`
                 if (boardingTime && endTime) {
-                  displayName = `Trip ${tripNumber} - ${boardingTime} → ${endTime}`
+                  displayName = `T${tripNumber}: ${boardingTime}-${endTime}`
                 } else if (boardingTime) {
-                  displayName = `Trip ${tripNumber} - ${boardingTime}`
+                  displayName = `T${tripNumber}: ${boardingTime}`
                 }
 
                 return (
@@ -272,8 +282,8 @@ function UnmatchedPage() {
             onClick={() => setFilterModalOpen(false)}
           />
 
-          <div className="relative w-full sm:max-w-lg bg-slate-900 border border-purple-500/30 rounded-t-3xl sm:rounded-2xl shadow-2xl shadow-purple-500/20 max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-slate-900/95 backdrop-blur-sm border-b border-purple-500/20 px-6 py-4 flex items-center justify-between">
+          <div className="relative w-full sm:max-w-md bg-slate-900 border border-purple-500/30 rounded-t-3xl sm:rounded-2xl shadow-2xl shadow-purple-500/20 max-h-[90vh]">
+            <div className="sticky top-0 bg-slate-900/95 backdrop-blur-sm border-b border-purple-500/20 px-6 py-5 flex items-center justify-between">
               <h3 className="text-xl font-bold text-slate-100 flex items-center gap-2">
                 <svg className="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
@@ -282,15 +292,17 @@ function UnmatchedPage() {
               </h3>
               <button
                 onClick={() => setFilterModalOpen(false)}
-                className="p-2 hover:bg-slate-800 rounded-lg transition-colors"
+                className="p-2 bg-slate-800/50 hover:bg-slate-800 rounded-lg transition-colors"
               >
-                <svg className="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
 
-            <div className="p-6 space-y-6">
+            {/* Scrollable Content Area */}
+            <div className="overflow-y-auto max-h-[60vh] px-6 py-6 space-y-6 custom-scrollbar">
+              {/* Bus Filter */}
               <div className="space-y-2">
                 <label className="flex items-center gap-2 text-sm font-semibold text-slate-300">
                   <span className="text-lg">🚌</span>
@@ -309,60 +321,85 @@ function UnmatchedPage() {
                   <span className="text-lg">📅</span>
                   Select Date
                 </label>
-                <input
-                  type="date"
-                  value={format(tempFilters.date, 'yyyy-MM-dd')}
-                  onChange={(e) => setTempFilters(prev => ({ ...prev, date: new Date(e.target.value) }))}
-                  max={format(new Date(), 'yyyy-MM-dd')}
-                  className="w-full px-4 py-3 bg-slate-800/50 border border-purple-500/30 text-slate-100 rounded-lg focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 transition-all [color-scheme:dark]"
-                  style={{ colorScheme: 'dark' }}
-                />
+                <div className="relative">
+                  <input
+                    type="date"
+                    value={format(tempFilters.date, 'yyyy-MM-dd')}
+                    max={format(new Date(), 'yyyy-MM-dd')}
+                    onChange={(e) => setTempFilters(prev => ({ ...prev, date: new Date(e.target.value) }))}
+                    className="w-full h-12 rounded-lg border border-purple-500/30 bg-slate-800/50 px-4 py-3 text-sm text-slate-100 shadow-lg shadow-purple-500/10 focus:border-purple-500 focus:outline-none transition-all [color-scheme:dark]"
+                  />
+                </div>
               </div>
 
-              {availableTrips && availableTrips.length > 0 && (
-                <div className="space-y-2">
-                  <label className="flex items-center gap-2 text-sm font-semibold text-slate-300">
-                    <span className="text-lg">🎯</span>
-                    Select Trip
-                  </label>
-                  <select
-                    value={tempFilters.trip}
-                    onChange={(e) => setTempFilters(prev => ({ ...prev, trip: e.target.value }))}
-                    className="w-full px-4 py-3 bg-slate-800/50 border border-purple-500/30 text-slate-100 rounded-lg focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 transition-all cursor-pointer"
+              {/* Trip Filter */}
+              <div className="space-y-2" ref={tripDropdownRef}>
+                <label className="flex items-center gap-2 text-sm font-semibold text-slate-300">
+                  <span className="text-lg">🎯</span>
+                  Select Trip
+                </label>
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setIsTripOpen(!isTripOpen)}
+                    className="w-full h-12 flex items-center justify-between px-4 rounded-lg border border-purple-500/30 bg-slate-800/50 text-sm text-slate-100 shadow-lg shadow-purple-500/10 focus:border-purple-500 focus:outline-none transition-all hover:bg-slate-800/70"
                   >
-                    <option value="ALL" className="bg-slate-900 text-slate-100">All trips ({availableTrips.length})</option>
-                    {availableTrips.map((trip, index) => {
-                      const tripId = typeof trip === 'string' ? trip : trip.trip_id
-                      // Use boarding_start_time or departure_time directly instead of start_time to avoid timezone issues
-                      const boardingTime = typeof trip === 'object'
-                        ? (trip.boarding_start_time || trip.departure_time || '')
-                        : ''
-                      // Get end time from end_time or estimated_arrival_time
-                      const endTime = typeof trip === 'object'
-                        ? (trip.end_time || trip.estimated_arrival_time || '')
-                        : ''
+                    <span className="truncate">
+                      {tempFilters.trip === 'ALL'
+                        ? (availableTrips ? `All trips (${availableTrips.length})` : 'All trips')
+                        : `Trip ${tempFilters.trip}`}
+                    </span>
+                    <span className={`transition-transform duration-200 ${isTripOpen ? 'rotate-180' : ''}`}>
+                      <svg className="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </span>
+                  </button>
 
-                      // Extract trip number from trip_id
-                      const tripMatch = tripId.match(/_(\d+)$/)
-                      const tripNumber = tripMatch ? parseInt(tripMatch[1]) + 1 : index + 1
+                  {isTripOpen && availableTrips && availableTrips.length > 0 && (
+                    <div className="absolute z-50 w-full mt-2 rounded-xl border border-slate-700 bg-slate-900 shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-150 origin-top">
+                      <div className="max-h-60 overflow-y-auto custom-scrollbar">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setTempFilters(prev => ({ ...prev, trip: 'ALL' }))
+                            setIsTripOpen(false)
+                          }}
+                          className={`w-full text-left px-4 py-3 text-sm transition-colors hover:bg-purple-500/10 ${tempFilters.trip === 'ALL' ? 'bg-purple-500/20 text-purple-300' : 'text-slate-300'}`}
+                        >
+                          All trips ({availableTrips.length})
+                        </button>
+                        {availableTrips.map((trip, index) => {
+                          const tripId = typeof trip === 'string' ? trip : trip.trip_id
+                          const isSelected = tempFilters.trip === tripId
 
-                      // Create display name with both start and end times
-                      let displayName = `Trip ${tripNumber}`
-                      if (boardingTime && endTime) {
-                        displayName = `Trip ${tripNumber} - ${boardingTime} → ${endTime}`
-                      } else if (boardingTime) {
-                        displayName = `Trip ${tripNumber} - ${boardingTime}`
-                      }
+                          let displayName = tripId
+                          if (typeof trip === 'object') {
+                            const tripMatch = tripId.match(/_(\d+)$/)
+                            const tripNumber = tripMatch ? parseInt(tripMatch[1]) + 1 : index + 1
+                            const timeInfo = trip.boarding_start_time || trip.departure_time || ''
+                            displayName = timeInfo ? `T${tripNumber}: ${timeInfo}` : `Trip ${tripNumber}`
+                          }
 
-                      return (
-                        <option key={`${tripId}_${index}`} value={tripId} className="bg-slate-900 text-slate-100">
-                          {displayName}
-                        </option>
-                      )
-                    })}
-                  </select>
+                          return (
+                            <button
+                              key={`${tripId}_${index}`}
+                              type="button"
+                              onClick={() => {
+                                setTempFilters(prev => ({ ...prev, trip: tripId }))
+                                setIsTripOpen(false)
+                              }}
+                              className={`w-full text-left px-4 py-3 text-sm transition-colors hover:bg-purple-500/10 ${isSelected ? 'bg-purple-500/20 text-purple-300' : 'text-slate-300'}`}
+                            >
+                              {displayName}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
-              )}
+              </div>
 
               <div className="rounded-xl bg-slate-800/30 border border-purple-500/20 p-4">
                 <p className="text-xs text-slate-400 mb-2">Current Selection:</p>
@@ -406,9 +443,9 @@ function UnmatchedPage() {
         </div>
       ) : (
         <div className="space-y-6">
-          <header className="text-center">
-            <h3 className="text-2xl font-semibold text-slate-100">Unmatched passengers</h3>
-            <p className="mt-2 text-sm text-slate-400">Entries without exits or exits without matching entries</p>
+          <header className="text-left sm:text-center px-2">
+            <h3 className="text-xl sm:text-2xl font-bold text-slate-100">Unmatched passengers</h3>
+            <p className="mt-1 text-xs sm:text-sm text-slate-400">Entries or exits without matching records found.</p>
           </header>
 
           <div className="flex flex-wrap items-center gap-3">
@@ -418,8 +455,8 @@ function UnmatchedPage() {
                 key={filter.id}
                 onClick={() => setFilterType(filter.id)}
                 className={`rounded-lg px-4 py-2 text-sm font-medium transition-all ${filterType === filter.id
-                    ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/30'
-                    : 'border border-slate-700 bg-slate-900/80 text-slate-200 hover:bg-slate-800'
+                  ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/30'
+                  : 'border border-slate-700 bg-slate-900/80 text-slate-200 hover:bg-slate-800'
                   }`}
               >
                 {filter.label}
@@ -435,48 +472,50 @@ function UnmatchedPage() {
             </div>
           ) : (
             <div className="space-y-6">
-              <div className="overflow-x-auto rounded-2xl border border-slate-800">
-                <table className="min-w-full divide-y divide-slate-800 text-sm">
-                  <thead className="bg-slate-950/80 text-left text-xs uppercase tracking-wide text-slate-400">
-                    <tr>
-                      <th className="px-4 py-3">Bus ID</th>
-                      <th className="px-4 py-3">Type</th>
-                      <th className="px-4 py-3">Face ID</th>
-                      <th className="px-4 py-3">Time</th>
-                      <th className="px-4 py-3">Location</th>
-                      <th className="px-4 py-3">Device</th>
-                      <th className="px-4 py-3">Best match</th>
-                      <th className="px-4 py-3">Reason</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800 bg-slate-900/70 text-slate-200">
-                    {unmatched.map((item, index) => (
-                      <tr key={index} className="transition-colors hover:bg-slate-900/90">
-                        <td className="px-4 py-3 font-semibold text-indigo-300">{item.bus_id || 'N/A'}</td>
-                        <td className="px-4 py-3">
-                          <span
-                            className={`rounded-full px-3 py-1 text-xs font-semibold ${item.type === 'ENTRY'
-                                ? 'bg-sky-500/20 text-sky-200'
-                                : 'bg-rose-500/20 text-rose-200'
-                              }`}
-                          >
-                            {item.type}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 font-mono text-xs text-slate-400">{item.face_id}</td>
-                        <td className="px-4 py-3 text-slate-200">{formatDateTime(item.timestamp)}</td>
-                        <td className="px-4 py-3 text-xs text-slate-400">{formatLocation(item.location)}</td>
-                        <td className="px-4 py-3 text-slate-300">{item.location?.device_id || 'N/A'}</td>
-                        <td className="px-4 py-3 text-slate-200">
-                          {item.best_similarity_found !== undefined && item.best_similarity_found !== null
-                            ? `${(item.best_similarity_found * 100).toFixed(1)}%`
-                            : 'N/A'}
-                        </td>
-                        <td className="px-4 py-3 text-xs text-slate-400">{item.reason}</td>
+              <div className="w-full overflow-x-auto rounded-xl sm:rounded-2xl border border-slate-800">
+                <div className="inline-block min-w-full align-middle">
+                  <table className="min-w-[1000px] w-full divide-y divide-slate-800/50 text-sm">
+                    <thead className="bg-slate-950/80 text-left text-xs uppercase tracking-wide text-slate-400">
+                      <tr>
+                        <th className="px-5 py-4 font-semibold">Bus ID</th>
+                        <th className="px-5 py-4 font-semibold">Type</th>
+                        <th className="px-5 py-4 font-semibold">Face ID</th>
+                        <th className="px-5 py-4 font-semibold">Time</th>
+                        <th className="px-5 py-4 font-semibold">Location</th>
+                        <th className="px-5 py-4 font-semibold">Device</th>
+                        <th className="px-5 py-4 font-semibold">Best match</th>
+                        <th className="px-5 py-4 font-semibold">Reason</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/80 bg-slate-900/60 text-slate-200">
+                      {unmatched.map((item, index) => (
+                        <tr key={index} className="transition-colors hover:bg-slate-800/30 leading-relaxed">
+                          <td className="px-5 py-4 whitespace-nowrap font-bold text-purple-400">{item.bus_id || '---'}</td>
+                          <td className="px-5 py-4 whitespace-nowrap">
+                            <span
+                              className={`rounded-full px-3 py-1 text-[10px] font-bold ${item.type === 'ENTRY'
+                                ? 'bg-sky-500/10 text-sky-400 border border-sky-500/20'
+                                : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                                }`}
+                            >
+                              {item.type}
+                            </span>
+                          </td>
+                          <td className="px-5 py-4 whitespace-nowrap font-mono text-[10px] text-slate-500">{item.face_id}</td>
+                          <td className="px-5 py-4 whitespace-nowrap text-slate-300 font-mono text-xs">{formatDateTime(item.timestamp)}</td>
+                          <td className="px-5 py-4 whitespace-nowrap text-[10px] text-slate-400 font-mono">{formatLocation(item.location)}</td>
+                          <td className="px-5 py-4 whitespace-nowrap text-slate-400 text-xs">{item.location?.device_id || '---'}</td>
+                          <td className="px-5 py-4 whitespace-nowrap font-bold text-slate-200">
+                            {item.best_similarity_found !== undefined && item.best_similarity_found !== null
+                              ? `${(item.best_similarity_found * 100).toFixed(1)}%`
+                              : '---'}
+                          </td>
+                          <td className="px-5 py-4 text-xs text-slate-500 min-w-[200px]">{item.reason}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
 
               <Pagination

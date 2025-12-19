@@ -265,10 +265,10 @@ function PowerPage() {
             {board.location || 'Unknown'} · {board.ip_address || 'No IP'} · {timeDiff}
           </p>
         </div>
-        <span className={`flex-shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${online ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-slate-700/50 text-slate-400 border border-slate-600'
+        <span className={`flex-shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${online ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-slate-800 text-slate-500 border border-slate-700'
           }`}
         >
-          {online ? '● Online' : '○ Offline'}
+          {online ? 'Online' : 'Offline'}
         </span>
       </div>
     )
@@ -309,20 +309,20 @@ function PowerPage() {
 
   return (
     <div className="space-y-8">
-      <section className="backdrop-blur-xl bg-slate-900/50 border border-purple-500/20 rounded-2xl p-6 shadow-lg shadow-purple-500/10">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h1 className="text-3xl font-semibold text-slate-100 flex items-center gap-2">
+      <section className="backdrop-blur-xl bg-slate-900/50 border border-purple-500/20 rounded-2xl p-4 sm:p-6 shadow-lg shadow-purple-500/10">
+        <div className="flex flex-col gap-4">
+          <div className="text-left sm:text-center lg:text-left">
+            <h1 className="text-2xl sm:text-3xl font-bold text-slate-100 flex items-center gap-2">
               <span>⚡</span>
-              ESP32 Fleet Power Management
+              Fleet Power
             </h1>
-            <p className="text-slate-400 mt-1">
-              Configure deep sleep windows and maintenance schedules for each bus. Boards sync automatically every 30 seconds.
+            <p className="text-sm text-slate-400 mt-1">
+              Deep sleep windows and maintenance schedules.
             </p>
           </div>
-          <div className="rounded-xl border border-purple-500/20 bg-slate-800/50 px-4 py-2 text-sm text-slate-300">
-            <div>Auto-refresh every 30s</div>
-            <div>Last update: {lastUpdate ? lastUpdate.toLocaleTimeString() : '—'}</div>
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3 rounded-xl border border-purple-500/10 bg-slate-950/40">
+            <div className="text-xs text-slate-400 font-medium">Auto-refresh: 30s</div>
+            <div className="text-xs text-purple-300 font-mono">Last updated: {lastUpdate ? lastUpdate.toLocaleTimeString() : '—'}</div>
           </div>
         </div>
       </section>

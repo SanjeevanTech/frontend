@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import axios from '../utils/axios'
 import { API } from '../config/api'
 import LoadingSpinner from './LoadingSpinner'
@@ -6,9 +6,20 @@ import LoadingSpinner from './LoadingSpinner'
 function BusSelector({ selectedBus, onBusChange, showAll = true, label = 'Filter by bus', validateSelection = false }) {
   const [buses, setBuses] = useState([])
   const [loading, setLoading] = useState(true)
+  const [isOpen, setIsOpen] = useState(false)
+  const dropdownRef = useRef(null)
 
   useEffect(() => {
     loadBuses()
+
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
   const loadBuses = async () => {
@@ -17,7 +28,6 @@ function BusSelector({ selectedBus, onBusChange, showAll = true, label = 'Filter
       const busIds = Object.keys(response.data)
       setBuses(busIds)
 
-      // Validation logic: specific for when a bus might have been deleted
       if (validateSelection && busIds.length > 0 && selectedBus && selectedBus !== 'ALL' && !busIds.includes(selectedBus)) {
         console.warn(`Selected bus ${selectedBus} no longer exists. Auto-selecting first available.`)
         onBusChange(busIds[0])
@@ -41,29 +51,65 @@ function BusSelector({ selectedBus, onBusChange, showAll = true, label = 'Filter
     )
   }
 
+  const selectedBusDisplay = selectedBus === 'ALL' ? 'All buses' : selectedBus
+
   return (
     <div className="space-y-2">
-      <label className="flex items-center gap-2 text-sm font-semibold text-slate-300">
-        {label}
-      </label>
-      <div className="relative">
-        <select
-          value={selectedBus}
-          onChange={(e) => onBusChange(e.target.value)}
-          className="w-full appearance-none rounded-lg border border-purple-500/30 bg-slate-800/50 backdrop-blur-sm px-4 py-3 text-sm text-slate-100 shadow-lg shadow-purple-500/10 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 transition-all cursor-pointer hover:bg-slate-800/70"
+      {label && (
+        <label className="flex items-center gap-2 text-sm font-semibold text-slate-300">
+          {label}
+        </label>
+      )}
+      <div className="relative" ref={dropdownRef}>
+        <button
+          type="button"
+          onClick={() => setIsOpen(!isOpen)}
+          className="w-full h-12 flex items-center justify-between px-4 rounded-lg border border-purple-500/30 bg-slate-800/50 backdrop-blur-sm text-sm text-slate-100 shadow-lg shadow-purple-500/10 focus:border-purple-500 focus:outline-none transition-all hover:bg-slate-800/70"
         >
-          {showAll && <option className="bg-slate-900 text-slate-100" value="ALL">🚌 All buses</option>}
-          {buses.map(busId => (
-            <option key={busId} value={busId} className="bg-slate-900 text-slate-100">
-              🚌 {busId}
-            </option>
-          ))}
-        </select>
-        <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-purple-400">
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
-        </span>
+          <span className="flex items-center gap-2 truncate">
+            <span className="text-lg">🚌</span>
+            {selectedBusDisplay}
+          </span>
+          <span className={`transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}>
+            <svg className="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </span>
+        </button>
+
+        {isOpen && (
+          <div className="absolute z-50 w-full mt-2 rounded-xl border border-slate-700 bg-slate-900 shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-150 origin-top">
+            <div className="max-h-60 overflow-y-auto custom-scrollbar">
+              {showAll && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onBusChange('ALL')
+                    setIsOpen(false)
+                  }}
+                  className={`w-full flex items-center gap-3 px-4 py-3 text-sm transition-colors hover:bg-purple-500/10 ${selectedBus === 'ALL' ? 'bg-purple-500/20 text-purple-300' : 'text-slate-300'}`}
+                >
+                  <span className="text-lg">🚌</span>
+                  All buses
+                </button>
+              )}
+              {buses.map(busId => (
+                <button
+                  key={busId}
+                  type="button"
+                  onClick={() => {
+                    onBusChange(busId)
+                    setIsOpen(false)
+                  }}
+                  className={`w-full flex items-center gap-3 px-4 py-3 text-sm transition-colors hover:bg-purple-500/10 ${selectedBus === busId ? 'bg-purple-500/20 text-purple-300' : 'text-slate-300'}`}
+                >
+                  <span className="text-lg">🚌</span>
+                  {busId}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
       {buses.length === 0 && (
         <p className="text-xs text-red-400 flex items-center gap-2">
