@@ -37,9 +37,9 @@ export const hasPermission = (user, requiredRole) => {
     operator: 2,
     admin: 3
   }
-  
+
   const userLevel = roles[user?.role] || 0
   const requiredLevel = roles[requiredRole] || 0
-  
+
   return userLevel >= requiredLevel
 }

@@ -31,17 +31,23 @@ axiosInstance.interceptors.request.use(
   (config) => {
     if (isBrowser) {
       console.log('🌐 Node API Request:', config.method?.toUpperCase(), config.url);
-      
+
+      // Attach token from localStorage for header-based auth (Backup for cookies)
+      const token = localStorage.getItem('token');
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+
       // Request deduplication for GET requests only
       if (config.method?.toLowerCase() === 'get') {
         const requestKey = `${config.method}:${config.url}`;
-        
+
         // If same request is already pending, return the existing promise
         if (pendingRequests.has(requestKey)) {
           console.log('⚡ Deduplicating request:', requestKey);
           return pendingRequests.get(requestKey);
         }
-        
+
         // Store this request
         config.requestKey = requestKey;
       }
@@ -61,7 +67,7 @@ axiosInstance.interceptors.response.use(
   (response) => {
     if (isBrowser) {
       console.log('✅ Node API Response:', response.config.url, response.status);
-      
+
       // Clear from pending requests
       if (response.config.requestKey) {
         pendingRequests.delete(response.config.requestKey);
@@ -72,12 +78,12 @@ axiosInstance.interceptors.response.use(
   (error) => {
     if (isBrowser) {
       console.error('❌ Node API Error:', error.config?.url, error.response?.status, error.message);
-      
+
       // Clear from pending requests
       if (error.config?.requestKey) {
         pendingRequests.delete(error.config.requestKey);
       }
-      
+
       // Handle 401 Unauthorized - redirect to login ONLY if not already on login page
       if (error.response?.status === 401 && !window.location.pathname.includes('/login')) {
         // Don't redirect if this is the initial auth check

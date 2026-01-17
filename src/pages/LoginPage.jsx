@@ -21,7 +21,7 @@ function LoginPage({ onLoginSuccess }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    
+
     if (!formData.email || !formData.password) {
       toast.error('Please enter email and password')
       return
@@ -34,6 +34,11 @@ function LoginPage({ onLoginSuccess }) {
       })
 
       if (response.data.success) {
+        // Save token to localStorage for header-based auth (Backup for cookies)
+        if (response.data.token) {
+          localStorage.setItem('token', response.data.token);
+        }
+
         // Cookie is automatically stored by the browser
         onLoginSuccess(response.data.user)
         toast.success('Login successful!')
@@ -43,10 +48,10 @@ function LoginPage({ onLoginSuccess }) {
     } catch (error) {
       console.error('Login error:', error)
       console.error('Error response:', error.response)
-      
+
       // Better error handling
       let errorMessage = 'Login failed. Please try again.'
-      
+
       if (error.response) {
         // Server responded with error
         errorMessage = error.response.data?.message || `Error: ${error.response.status}`
@@ -57,7 +62,7 @@ function LoginPage({ onLoginSuccess }) {
         // Something else happened
         errorMessage = error.message || 'An unexpected error occurred'
       }
-      
+
       toast.error(errorMessage)
     } finally {
       setLoading(false)
