@@ -3,6 +3,10 @@
         {
             "source": "/api/:match*",
             "destination": "http://52.66.122.5:5000/api/:match*"
+        },
+        {
+            "source": "/((?!api/).*)",
+            "destination": "/index.html"
         }
     ]
 }
