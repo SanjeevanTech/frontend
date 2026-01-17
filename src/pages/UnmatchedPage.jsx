@@ -25,6 +25,7 @@ function UnmatchedPage() {
     date: new Date(),
     trip: 'ALL'
   })
+  const [locationNames, setLocationNames] = useState({})
   const itemsPerPage = 50
 
   const handleBusChange = (busId) => {
@@ -116,6 +117,55 @@ function UnmatchedPage() {
     if (!location) return 'N/A'
     return `${location.latitude?.toFixed(6)}, ${location.longitude?.toFixed(6)}`
   }
+
+  const openInGoogleMaps = (location) => {
+    if (!location || !location.latitude || !location.longitude) return
+    const url = `https://www.google.com/maps?q=${location.latitude},${location.longitude}`
+    window.open(url, '_blank')
+  }
+
+  const getLocationName = async (lat, lon, key) => {
+    if (locationNames[key]) return
+
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=14&addressdetails=1`,
+        {
+          headers: {
+            'User-Agent': 'BusPassengerTracker/1.0'
+          }
+        }
+      )
+      const data = await response.json()
+
+      const address = data.address || {}
+      const name = address.city || address.town || address.village ||
+        address.suburb || address.county || address.state ||
+        'Unknown location'
+
+      setLocationNames(prev => ({ ...prev, [key]: name }))
+    } catch (error) {
+      console.error('Error fetching location name:', error)
+    }
+  }
+
+  // Fetch location names for unmatched items
+  useEffect(() => {
+    unmatched.forEach((item, index) => {
+      if (!item.location?.location_name &&
+        item.location?.latitude &&
+        item.location?.longitude) {
+        const key = `unmatched-${index}`
+        setTimeout(() => {
+          getLocationName(
+            item.location.latitude,
+            item.location.longitude,
+            key
+          )
+        }, index * 200)
+      }
+    })
+  }, [unmatched])
 
   const openFilterModal = () => {
     setTempFilters({
@@ -477,13 +527,13 @@ function UnmatchedPage() {
                   <table className="min-w-[1000px] w-full divide-y divide-slate-800/50 text-sm">
                     <thead className="bg-slate-950/80 text-left text-xs uppercase tracking-wide text-slate-400">
                       <tr>
-                        <th className="px-5 py-4 font-semibold">Bus ID</th>
-                        <th className="px-5 py-4 font-semibold">Type</th>
-                        <th className="px-5 py-4 font-semibold">Face ID</th>
-                        <th className="px-5 py-4 font-semibold">Time</th>
-                        <th className="px-5 py-4 font-semibold">Location</th>
-                        <th className="px-5 py-4 font-semibold">Device</th>
-                        <th className="px-5 py-4 font-semibold">Best match</th>
+                        <th className="w-24 px-5 py-4 font-semibold">Bus ID</th>
+                        <th className="w-24 px-5 py-4 font-semibold">Type</th>
+                        <th className="w-24 px-5 py-4 font-semibold">Face ID</th>
+                        <th className="w-32 px-5 py-4 font-semibold">Time</th>
+                        <th className="w-64 px-5 py-4 font-semibold">Location</th>
+                        <th className="w-32 px-5 py-4 font-semibold">Device</th>
+                        <th className="w-24 px-5 py-4 font-semibold">Best match</th>
                         <th className="px-5 py-4 font-semibold">Reason</th>
                       </tr>
                     </thead>
@@ -503,7 +553,17 @@ function UnmatchedPage() {
                           </td>
                           <td className="px-5 py-4 whitespace-nowrap font-mono text-[10px] text-slate-500">{item.face_id}</td>
                           <td className="px-5 py-4 whitespace-nowrap text-slate-300 font-mono text-xs">{formatDateTime(item.timestamp)}</td>
-                          <td className="px-5 py-4 whitespace-nowrap text-[10px] text-slate-400 font-mono">{formatLocation(item.location)}</td>
+                          <td className="px-5 py-4">
+                            <button
+                              className="w-full text-left rounded-lg bg-slate-800/30 border border-slate-700/50 px-3 py-2 transition hover:border-purple-500/50 hover:bg-purple-500/5"
+                              onClick={() => openInGoogleMaps(item.location)}
+                            >
+                              <div className="font-medium text-slate-200 truncate" title={item.location?.location_name}>
+                                {item.location?.location_name || locationNames[`unmatched-${index}`] || 'Locating…'}
+                              </div>
+                              <div className="text-[10px] text-slate-500 font-mono mt-0.5">{formatLocation(item.location)}</div>
+                            </button>
+                          </td>
                           <td className="px-5 py-4 whitespace-nowrap text-slate-400 text-xs">{item.location?.device_id || '---'}</td>
                           <td className="px-5 py-4 whitespace-nowrap font-bold text-slate-200">
                             {item.best_similarity_found !== undefined && item.best_similarity_found !== null
