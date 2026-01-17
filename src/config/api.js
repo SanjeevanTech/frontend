@@ -28,6 +28,11 @@ export const API = {
 
     // Contractors
     contractors: '/api/contractors',
+
+    // Device Provisioning (WiFi/Server URL)
+    deviceConfigGet: '/api/device-config/get',
+    deviceConfigAll: '/api/device-config/all',
+    deviceConfigUpdate: '/api/device-config/update'
   }
 };
 
