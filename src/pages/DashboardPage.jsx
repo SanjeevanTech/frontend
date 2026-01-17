@@ -1,7 +1,7 @@
 import { useState, useEffect, lazy, Suspense, useMemo } from 'react'
 import { toast } from 'react-hot-toast'
 import { logout } from '../utils/auth'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation, Routes, Route, Navigate } from 'react-router-dom'
 import axios from '../utils/axios'
 import { format } from 'date-fns'
 import LoadingSpinner from '../components/LoadingSpinner'
@@ -38,7 +38,15 @@ const ContractorsPage = lazy(() => import('./ContractorsPage'))
 
 function DashboardPage({ user, setUser }) {
   const navigate = useNavigate()
-  const [activeView, setActiveView] = useState('passengers')
+  const location = useLocation()
+
+  // Extract active view from path (e.g., /unmatched -> unmatched)
+  const activeView = useMemo(() => {
+    const path = location.pathname.split('/')[1] || 'passengers';
+    if (path === 'fares') return 'admin';
+    return path;
+  }, [location.pathname]);
+
   const [unmatchedCount, setUnmatchedCount] = useState(0)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -72,6 +80,12 @@ function DashboardPage({ user, setUser }) {
     }
   }
 
+  const handleNavClick = (id) => {
+    const path = id === 'admin' ? '/fares' : (id === 'passengers' ? '/' : `/${id}`);
+    navigate(path);
+    setMobileMenuOpen(false);
+  }
+
   const navItems = useMemo(() => [
     { id: 'passengers', label: 'Passengers', icon: Users, badge: 0 },
     { id: 'unmatched', label: 'Unmatched', icon: AlertTriangle, badge: unmatchedCount, color: 'text-amber-400' },
@@ -85,19 +99,6 @@ function DashboardPage({ user, setUser }) {
     { id: 'admin', label: 'Fares', icon: CircleDollarSign, badge: 0 },
   ], [unmatchedCount])
 
-  const ActiveComponent = {
-    passengers: PassengersPage,
-    unmatched: UnmatchedPage,
-    trips: TripsPage,
-    routes: RoutesPage,
-    schedule: SchedulePage,
-    waypoints: WaypointsPage,
-    seasonTicket: SeasonTicketsPage,
-    contractors: ContractorsPage,
-    power: PowerPage,
-    admin: FaresPage
-  }[activeView]
-
   return (
     <div className="flex min-h-screen bg-[#0f172a] text-slate-200 font-sans selection:bg-purple-500/30">
       {/* Sidebar - Desktop */}
@@ -105,7 +106,6 @@ function DashboardPage({ user, setUser }) {
         className={`fixed inset-y-0 left-0 z-50 hidden lg:flex flex-col border-r border-slate-800 bg-slate-900/50 backdrop-blur-xl transition-all duration-300 ease-in-out ${isSidebarCollapsed ? 'w-20' : 'w-72'
           }`}
       >
-        {/* Sidebar Header / Logo */}
         <div className="flex items-center h-20 px-6 border-b border-slate-800/50">
           <div className="flex items-center gap-3 overflow-hidden">
             <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white shadow-lg shadow-purple-500/20">
@@ -124,12 +124,11 @@ function DashboardPage({ user, setUser }) {
           </div>
         </div>
 
-        {/* Navigation Items */}
         <div className="flex-1 px-3 py-6 space-y-1 overflow-y-auto custom-scrollbar">
           {navItems.map((item) => (
             <button
               key={item.id}
-              onClick={() => setActiveView(item.id)}
+              onClick={() => handleNavClick(item.id)}
               className={`group flex items-center w-full px-3 py-3 rounded-xl transition-all duration-200 relative ${activeView === item.id
                 ? 'bg-purple-500/10 text-purple-400 shadow-sm'
                 : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'
@@ -140,28 +139,24 @@ function DashboardPage({ user, setUser }) {
                 className={`flex-shrink-0 transition-transform duration-200 group-hover:scale-110 ${activeView === item.id ? 'text-purple-400' : item.color || 'text-slate-400'
                   }`}
               />
-
               {!isSidebarCollapsed && (
                 <span className="ml-3 font-medium text-sm whitespace-nowrap overflow-hidden transition-all duration-300">
                   {item.label}
                 </span>
               )}
 
-              {/* Tooltip for collapsed state */}
               {isSidebarCollapsed && (
                 <div className="absolute left-full ml-4 px-2 py-1 bg-slate-800 text-white text-xs rounded opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-[60]">
                   {item.label}
                 </div>
               )}
 
-              {/* Badge */}
               {item.badge > 0 && (
                 <span className={`absolute ${isSidebarCollapsed ? 'top-2 right-2' : 'right-3'} flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white shadow-sm shadow-red-500/20 animate-pulse`}>
                   {item.badge}
                 </span>
               )}
 
-              {/* Active Indicator Line */}
               {activeView === item.id && (
                 <div className="absolute left-0 w-1 h-6 bg-purple-500 rounded-r-full" />
               )}
@@ -169,7 +164,6 @@ function DashboardPage({ user, setUser }) {
           ))}
         </div>
 
-        {/* Sidebar Footer */}
         <div className="p-4 border-t border-slate-800/50">
           <button
             onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
@@ -180,9 +174,7 @@ function DashboardPage({ user, setUser }) {
         </div>
       </aside>
 
-      {/* Main Content Area */}
       <div className={`flex-1 flex flex-col min-h-screen max-w-full overflow-x-hidden transition-all duration-300 ${isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-72'}`}>
-        {/* Top Header */}
         <header className="sticky top-0 z-40 h-20 bg-slate-900/50 backdrop-blur-md border-b border-slate-800 px-4 sm:px-8 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <button
@@ -206,8 +198,6 @@ function DashboardPage({ user, setUser }) {
               <button className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-400 hover:text-white hover:border-slate-500 transition-all">
                 <User size={20} />
               </button>
-
-              {/* Simple Dropdown simulation */}
               <div className="absolute right-0 top-full mt-2 w-48 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all py-2 z-50">
                 <div className="px-4 py-2 border-b border-slate-800 sm:hidden">
                   <p className="text-sm font-medium text-slate-200 truncate">{user.email}</p>
@@ -225,7 +215,6 @@ function DashboardPage({ user, setUser }) {
           </div>
         </header>
 
-        {/* Viewport */}
         <main className="flex-1 p-2 sm:p-6 lg:p-8">
           <div className="max-w-7xl mx-auto">
             <Suspense fallback={
@@ -235,23 +224,29 @@ function DashboardPage({ user, setUser }) {
               </div>
             }>
               <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-                {ActiveComponent && <ActiveComponent />}
+                <Routes>
+                  <Route path="/" element={<PassengersPage />} />
+                  <Route path="/passengers" element={<Navigate to="/" replace />} />
+                  <Route path="/unmatched" element={<UnmatchedPage />} />
+                  <Route path="/trips" element={<TripsPage />} />
+                  <Route path="/routes" element={<RoutesPage />} />
+                  <Route path="/schedule" element={<SchedulePage />} />
+                  <Route path="/waypoints" element={<WaypointsPage />} />
+                  <Route path="/seasonTicket" element={<SeasonTicketsPage />} />
+                  <Route path="/contractors" element={<ContractorsPage />} />
+                  <Route path="/power" element={<PowerPage />} />
+                  <Route path="/fares" element={<FaresPage />} />
+                </Routes>
               </div>
             </Suspense>
           </div>
         </main>
       </div>
 
-      {/* Mobile Sidebar Overlay */}
+      {/* Mobile Sidebar */}
       {mobileMenuOpen && (
         <div className="fixed inset-0 z-[100] lg:hidden">
-          {/* Backdrop */}
-          <div
-            className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm transition-opacity"
-            onClick={() => setMobileMenuOpen(false)}
-          />
-
-          {/* Sidebar drawer */}
+          <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm transition-opacity" onClick={() => setMobileMenuOpen(false)} />
           <div className="absolute inset-y-0 left-0 w-80 bg-slate-900 border-r border-slate-800 flex flex-col shadow-2xl animate-in slide-in-from-left duration-300">
             <div className="flex items-center justify-between h-20 px-6 border-b border-slate-800">
               <div className="flex items-center gap-3">
@@ -260,43 +255,25 @@ function DashboardPage({ user, setUser }) {
                 </div>
                 <span className="text-lg font-bold text-white">BusTrack</span>
               </div>
-              <button
-                onClick={() => setMobileMenuOpen(false)}
-                className="p-2 text-slate-400 hover:text-white"
-              >
+              <button onClick={() => setMobileMenuOpen(false)} className="p-2 text-slate-400 hover:text-white">
                 <X size={24} />
               </button>
             </div>
-
             <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
               {navItems.map((item) => (
                 <button
                   key={item.id}
-                  onClick={() => {
-                    setActiveView(item.id)
-                    setMobileMenuOpen(false)
-                  }}
-                  className={`flex items-center w-full px-4 py-3 rounded-xl transition-all ${activeView === item.id
-                    ? 'bg-purple-500/10 text-purple-400'
-                    : 'text-slate-400 hover:bg-slate-800'
-                    }`}
+                  onClick={() => handleNavClick(item.id)}
+                  className={`flex items-center w-full px-4 py-3 rounded-xl transition-all ${activeView === item.id ? 'bg-purple-500/10 text-purple-400' : 'text-slate-400 hover:bg-slate-800'}`}
                 >
                   <item.icon size={20} className="mr-4" />
                   <span className="font-medium">{item.label}</span>
-                  {item.badge > 0 && (
-                    <span className="ml-auto bg-red-500 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                      {item.badge}
-                    </span>
-                  )}
+                  {item.badge > 0 && <span className="ml-auto bg-red-500 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center">{item.badge}</span>}
                 </button>
               ))}
             </nav>
-
             <div className="p-6 border-t border-slate-800">
-              <button
-                onClick={handleLogout}
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-500 text-white font-semibold rounded-xl hover:bg-red-600 transition-all shadow-lg shadow-red-500/20"
-              >
+              <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-500 text-white font-semibold rounded-xl hover:bg-red-600 transition-all shadow-lg shadow-red-500/20">
                 <LogOut size={20} />
                 Sign Out
               </button>
@@ -305,21 +282,11 @@ function DashboardPage({ user, setUser }) {
         </div>
       )}
 
-      {/* Global CSS for scrollbar */}
       <style>{`
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 4px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: transparent;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: #334155;
-          border-radius: 10px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: #475569;
-        }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #475569; }
       `}</style>
     </div>
   )

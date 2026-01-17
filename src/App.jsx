@@ -58,25 +58,25 @@ function App() {
 
       <Routes>
         {/* Login Route - Redirect to dashboard if already logged in */}
-        <Route 
-          path="/login" 
+        <Route
+          path="/login"
           element={
             user ? (
               <Navigate to="/" replace />
             ) : (
               <LoginPage onLoginSuccess={setUser} />
             )
-          } 
+          }
         />
 
         {/* Protected Dashboard Route */}
-        <Route 
-          path="/" 
+        <Route
+          path="/*"
           element={
             <ProtectedRoute user={user}>
               <DashboardPage user={user} setUser={setUser} />
             </ProtectedRoute>
-          } 
+          }
         />
 
         {/* 404 Not Found - Catch all other routes */}
