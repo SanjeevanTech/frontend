@@ -25,7 +25,8 @@ function BusSelector({ selectedBus, onBusChange, showAll = true, label = 'Filter
   const loadBuses = async () => {
     try {
       const response = await axios.get(API.node.buses)
-      const busIds = Object.keys(response.data)
+      // Filter out meta keys like 'current_server_time'
+      const busIds = Object.keys(response.data).filter(key => key !== 'current_server_time')
       setBuses(busIds)
 
       if (validateSelection && busIds.length > 0 && selectedBus && selectedBus !== 'ALL' && !busIds.includes(selectedBus)) {
