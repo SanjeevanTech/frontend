@@ -3,9 +3,10 @@ import axios from '../utils/axios'
 import { API } from '../config/api'
 import LoadingSpinner from '../components/LoadingSpinner'
 import DeleteConfirmModal from '../components/DeleteConfirmModal'
+import ActionConfirmModal from '../components/ActionConfirmModal'
 import { toast } from 'react-hot-toast'
 
-function PowerPage() {
+function PowerPage({ user }) {
   const [busConfigs, setBusConfigs] = useState({})
   const [formValues, setFormValues] = useState({})
   const [loading, setLoading] = useState(true)
@@ -30,10 +31,12 @@ function PowerPage() {
   const [showGlobalPass, setShowGlobalPass] = useState(false)
   const [showBusPass, setShowBusPass] = useState({})
 
-  // Security Gate
+  // Security Gate - Option A+B: Admin Role + Password Re-verification
+  const isAdmin = user?.role === 'admin'
   const [isUnlocked, setIsUnlocked] = useState(false)
   const [adminPass, setAdminPass] = useState('')
-  const MASTER_KEY = import.meta.env.VITE_ADMIN_PASSWORD || 'admin123'
+  const [verifying, setVerifying] = useState(false)
+  const [actionModal, setActionModal] = useState({ open: false, type: null, targetId: null })
 
   // Helper function to check if form has unsaved changes
   const hasUnsavedChanges = (busId) => {
@@ -46,6 +49,27 @@ function PowerPage() {
       form.deep_sleep_enabled !== (config.deep_sleep_enabled !== false) ||
       form.maintenance_interval !== (config.maintenance_interval ?? 5) ||
       form.maintenance_duration !== (config.maintenance_duration ?? 3)
+    )
+  }
+
+  const hasGlobalNetworkUnsaved = () => {
+    const config = deviceConfigs.default || {}
+    return (
+      globalForm.wifi_ssid !== (config.wifi_ssid || '') ||
+      globalForm.wifi_password !== (config.wifi_password || '') ||
+      globalForm.server_url !== (config.server_url || '')
+    )
+  }
+
+  const hasBusNetworkUnsaved = (busId) => {
+    const form = busNetworkForms[busId]
+    const config = deviceConfigs[busId] || {}
+    if (!form) return false
+
+    return (
+      form.wifi_ssid !== (config.wifi_ssid || '') ||
+      form.wifi_password !== (config.wifi_password || '') ||
+      form.server_url !== (config.server_url || '')
     )
   }
 
@@ -342,6 +366,15 @@ function PowerPage() {
   }
 
   const updateGlobalConfig = async () => {
+    setActionModal({
+      open: true,
+      type: 'global',
+      targetId: 'default'
+    })
+  }
+
+  const handleConfirmGlobalSync = async () => {
+    setActionModal(prev => ({ ...prev, open: false }))
     setSavingGlobal(true)
     try {
       await axios.post(API.node.deviceConfigUpdate, {
@@ -359,6 +392,16 @@ function PowerPage() {
   }
 
   const updateBusNetworkConfig = async (busId) => {
+    setActionModal({
+      open: true,
+      type: 'bus',
+      targetId: busId
+    })
+  }
+
+  const handleConfirmBusNetworkSync = async () => {
+    const busId = actionModal.targetId
+    setActionModal(prev => ({ ...prev, open: false }))
     setSavingNetworkBusId(busId)
     try {
       await axios.post(API.node.deviceConfigUpdate, {
@@ -403,13 +446,33 @@ function PowerPage() {
     toast.error('Direct override removal coming soon. For now, match settings with Global.')
   }
 
-  const handleUnlock = (e) => {
+  const handleUnlock = async (e) => {
     e.preventDefault()
-    if (adminPass === MASTER_KEY) {
+    if (!isAdmin) {
+      toast.error('Admin privileges required')
+      return
+    }
+
+    if (!adminPass) {
+      toast.error('Please enter your password')
+      return
+    }
+
+    setVerifying(true)
+    try {
+      // Re-verify identity using current email and entered password
+      await axios.post('/api/auth/login', {
+        email: user.email,
+        password: adminPass
+      })
+
       setIsUnlocked(true)
-      toast.success('Configuration Unlocked')
-    } else {
-      toast.error('Incorrect Admin Password')
+      toast.success('Identity Verified')
+    } catch (error) {
+      console.error('Verification failed:', error)
+      toast.error(error.response?.data?.message || 'Incorrect password')
+    } finally {
+      setVerifying(false)
     }
   }
 
@@ -444,28 +507,56 @@ function PowerPage() {
       </section>
 
       {!isUnlocked && (
-        <section className="backdrop-blur-xl bg-slate-900/60 border border-amber-500/30 rounded-2xl p-8 text-center shadow-2xl shadow-amber-500/5">
+        <section className={`backdrop-blur-xl bg-slate-900/60 border ${!isAdmin ? 'border-red-500/30' : 'border-amber-500/30'} rounded-2xl p-8 text-center shadow-2xl shadow-purple-500/5`}>
           <div className="max-w-md mx-auto space-y-6">
-            <div className="text-5xl">🔐</div>
+            <div className="text-5xl">{!isAdmin ? '🚫' : '🔐'}</div>
             <div>
-              <h2 className="text-xl font-bold text-slate-100">Protected Settings</h2>
-              <p className="text-sm text-slate-400 mt-2">Enter admin password to view or modify device configurations and power schedules.</p>
+              <h2 className="text-xl font-bold text-slate-100">
+                {!isAdmin ? 'Permission Denied' : 'Confirm Identity'}
+              </h2>
+              <p className="text-sm text-slate-400 mt-2">
+                {!isAdmin
+                  ? `Your account (${user?.email}) does not have administrative privileges.`
+                  : 'Hardware configurations are sensitive. Please re-enter your login password to continue.'}
+              </p>
             </div>
-            <form onSubmit={handleUnlock} className="flex flex-col gap-3">
-              <input
-                type="password"
-                value={adminPass}
-                onChange={(e) => setAdminPass(e.target.value)}
-                placeholder="Admin Password"
-                className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-white focus:border-amber-500 outline-none transition-all text-center tracking-widest"
-              />
-              <button
-                type="submit"
-                className="w-full py-3 bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold rounded-xl shadow-lg shadow-amber-500/20 hover:scale-[1.02] transition-all"
-              >
-                Unlock Configuration
-              </button>
-            </form>
+
+            {isAdmin ? (
+              <form onSubmit={handleUnlock} className="flex flex-col gap-3">
+                <div className="text-left">
+                  <label className="text-xs font-semibold text-slate-500 ml-1 mb-1 block">Account: {user?.email}</label>
+                  <input
+                    type="password"
+                    value={adminPass}
+                    onChange={(e) => setAdminPass(e.target.value)}
+                    placeholder="Enter login password"
+                    autoFocus
+                    className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-white focus:border-amber-500 outline-none transition-all text-center tracking-widest"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={verifying}
+                  className="w-full py-3 bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold rounded-xl shadow-lg shadow-amber-500/20 hover:scale-[1.02] transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {verifying ? (
+                    <>
+                      <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Verifying...
+                    </>
+                  ) : (
+                    'Unlock Configuration'
+                  )}
+                </button>
+              </form>
+            ) : (
+              <div className="p-4 rounded-xl bg-slate-800/50 border border-slate-700 text-slate-400 text-sm">
+                Please contact a system administrator to request access.
+              </div>
+            )}
           </div>
         </section>
       )}
@@ -485,9 +576,12 @@ function PowerPage() {
               <button
                 onClick={updateGlobalConfig}
                 disabled={savingGlobal}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-bold rounded-lg transition-all shadow-lg shadow-blue-900/20 flex items-center gap-2"
+                className={`px-4 py-2 text-white text-xs font-bold rounded-lg transition-all shadow-lg flex items-center gap-2 ${hasGlobalNetworkUnsaved()
+                  ? 'bg-gradient-to-r from-orange-500 to-orange-600 shadow-orange-900/20 animate-pulse'
+                  : 'bg-gradient-to-r from-blue-600 to-blue-700 shadow-blue-900/20'
+                  }`}
               >
-                {savingGlobal ? 'Saving...' : '💾 Update All Devices'}
+                {savingGlobal ? 'Saving...' : (hasGlobalNetworkUnsaved() ? '⚠️ Save Network Changes' : '💾 Update All Devices')}
               </button>
             </div>
 
@@ -822,9 +916,12 @@ function PowerPage() {
                           <button
                             onClick={() => updateBusNetworkConfig(busId)}
                             disabled={savingNetworkBusId === busId}
-                            className="w-full py-1.5 bg-slate-700 hover:bg-slate-600 text-white text-[11px] font-bold rounded transition-all"
+                            className={`w-full py-2 text-white text-[11px] font-bold rounded-lg transition-all shadow-md flex items-center justify-center gap-2 ${hasBusNetworkUnsaved(busId)
+                              ? 'bg-gradient-to-r from-orange-500 to-orange-600 shadow-orange-500/20 animate-pulse'
+                              : 'bg-gradient-to-r from-purple-500 to-pink-600 shadow-purple-500/20'
+                              }`}
                           >
-                            {savingNetworkBusId === busId ? 'Saving...' : 'Save Override'}
+                            {savingNetworkBusId === busId ? 'Saving...' : (hasBusNetworkUnsaved(busId) ? '⚠️ Save Override Changes' : '💾 Save Override')}
                           </button>
                         </div>
                       </div>
@@ -858,6 +955,29 @@ function PowerPage() {
           )}
         </>
       )}
+
+      {/* Modern Confirmation Modals */}
+      <ActionConfirmModal
+        isOpen={actionModal.open && actionModal.type === 'global'}
+        onClose={() => setActionModal({ open: false, type: null, targetId: null })}
+        onConfirm={handleConfirmGlobalSync}
+        title="Apply Global Settings"
+        message="Are you sure you want to update WiFi/Server settings for ALL devices in the fleet?"
+        note="Every board will need a manual restart or reset to connect to the new network."
+        confirmText="Update All Devices"
+        variant="warning"
+      />
+
+      <ActionConfirmModal
+        isOpen={actionModal.open && actionModal.type === 'bus'}
+        onClose={() => setActionModal({ open: false, type: null, targetId: null })}
+        onConfirm={handleConfirmBusNetworkSync}
+        title={`Update ${actionModal.targetId} Network`}
+        message={`This will override global settings for ${actionModal.targetId}. If the details are wrong, devices on this bus will lose connection.`}
+        note="Ensure the WiFi SSID and Password are typed correctly for the physical environment of this bus."
+        confirmText="Apply Override"
+        variant="info"
+      />
     </div>
   )
 }

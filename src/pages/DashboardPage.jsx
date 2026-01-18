@@ -234,7 +234,7 @@ function DashboardPage({ user, setUser }) {
                   <Route path="/waypoints" element={<WaypointsPage />} />
                   <Route path="/seasonTicket" element={<SeasonTicketsPage />} />
                   <Route path="/contractors" element={<ContractorsPage />} />
-                  <Route path="/power" element={<PowerPage />} />
+                  <Route path="/power" element={<PowerPage user={user} />} />
                   <Route path="/fares" element={<FaresPage />} />
                 </Routes>
               </div>
