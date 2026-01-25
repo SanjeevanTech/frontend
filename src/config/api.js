@@ -14,25 +14,25 @@ export const API = {
     extractFace: `${PYTHON_API_URL}/api/extract-face-embedding`,
   },
 
-  // Node.js Backend endpoints (use relative paths for Vite proxy)
+  // Node.js Backend endpoints
   node: {
     // Bus Routes
-    busRoutes: '/api/bus-routes',
-    busSchedule: (busId) => `/api/bus-schedule/${busId}`,
-    saveBusSchedule: '/api/bus-schedule',
+    busRoutes: `${NODE_API_URL}/api/bus-routes`,
+    busSchedule: (busId) => `${NODE_API_URL}/api/bus-schedule/${busId}`,
+    saveBusSchedule: `${NODE_API_URL}/api/bus-schedule`,
 
     // Power Management (moved from Python)
-    buses: '/api/power-config',              // GET all buses
-    powerConfig: '/api/power-config',        // POST/DELETE power config
-    syncPowerConfig: '/api/power-config/sync',
+    buses: `${NODE_API_URL}/api/power-config`,              // GET all buses
+    powerConfig: `${NODE_API_URL}/api/power-config`,        // POST/DELETE power config
+    syncPowerConfig: `${NODE_API_URL}/api/power-config/sync`,
 
     // Contractors
-    contractors: '/api/contractors',
+    contractors: `${NODE_API_URL}/api/contractors`,
 
     // Device Provisioning (WiFi/Server URL)
-    deviceConfigGet: '/api/device-config/get',
-    deviceConfigAll: '/api/device-config/all',
-    deviceConfigUpdate: '/api/device-config/update'
+    deviceConfigGet: `${NODE_API_URL}/api/device-config/get`,
+    deviceConfigAll: `${NODE_API_URL}/api/device-config/all`,
+    deviceConfigUpdate: `${NODE_API_URL}/api/device-config/update`
   }
 };
 
