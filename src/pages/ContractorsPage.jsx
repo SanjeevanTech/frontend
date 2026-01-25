@@ -36,6 +36,13 @@ function ContractorsPage() {
         fetchBuses();
     }, []);
 
+    // Cleanup camera on unmount
+    useEffect(() => {
+        return () => {
+            stopCamera();
+        };
+    }, []);
+
     // Handle stream assignment when video element is ready
     useEffect(() => {
         if (activeStream && videoRef.current && isCameraActive) {
@@ -86,6 +93,9 @@ function ContractorsPage() {
 
     const startCamera = async () => {
         try {
+            // Safety: Stop any existing stream first
+            stopCamera();
+
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
                 toast.error('Your browser does not support camera access. Please use Chrome or Firefox.');
                 return;

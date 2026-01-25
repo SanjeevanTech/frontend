@@ -15,9 +15,9 @@ export const NODE_API_URL = import.meta.env.PROD
 
 // Full API paths
 export const API = {
-  // Python Server endpoints (relative to pythonAxios baseURL)
+  // Python Server endpoints (ESP32 only + face recognition)
   python: {
-    extractFace: '/api/extract-face-embedding',
+    extractFace: `${PYTHON_API_URL}/api/extract-face-embedding`,
   },
 
   // Node.js Backend endpoints

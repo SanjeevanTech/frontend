@@ -56,6 +56,13 @@ function SeasonTicketsPage() {
     }
   };
 
+  // Cleanup camera on unmount
+  useEffect(() => {
+    return () => {
+      stopCamera();
+    };
+  }, []);
+
   // Handle stream assignment when video element is ready
   useEffect(() => {
     if (activeStream && videoRef.current && isCameraActive) {
@@ -136,6 +143,9 @@ function SeasonTicketsPage() {
 
   const startCamera = async () => {
     try {
+      // Safety: Stop any existing stream first to prevent leaks
+      stopCamera();
+
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         toast.error('Your browser does not support camera access. Please use Chrome, Firefox, or Edge.');
         return;
