@@ -59,7 +59,11 @@ function ContractorsPage() {
             } else if (response.data?.success && Array.isArray(response.data.buses)) {
                 busesData = response.data.buses;
             }
-            setBuses(busesData || []);
+            // Filter out the 'current_server_time' property which is a string, not a bus object
+            const filteredBuses = (busesData || []).filter(bus =>
+                bus && typeof bus === 'object' && bus.bus_id
+            );
+            setBuses(filteredBuses);
         } catch (error) {
             console.error('Error fetching buses:', error);
         }
@@ -328,7 +332,11 @@ function ContractorsPage() {
                                     >
                                         <option value="">Select a Bus</option>
                                         {buses.map(bus => (
-                                            <option key={bus.bus_id} value={bus.bus_id}>{bus.bus_id} ({bus.bus_name})</option>
+                                            <option key={bus.bus_id} value={bus.bus_id}>
+                                                {bus.bus_name && bus.bus_name !== bus.bus_id
+                                                    ? `${bus.bus_name} (${bus.bus_id})`
+                                                    : bus.bus_id}
+                                            </option>
                                         ))}
                                     </select>
                                 </div>

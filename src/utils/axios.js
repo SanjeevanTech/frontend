@@ -22,8 +22,12 @@ const axiosInstance = axios.create({
 });
 
 // Create separate axios instance for Python API (without credentials to avoid CORS issues)
+const pythonBaseURL = import.meta.env.PROD
+  ? '/api/python'
+  : (import.meta.env.VITE_PYTHON_API_URL || 'http://localhost:8888');
+
 export const pythonAxios = axios.create({
-  baseURL: import.meta.env.VITE_PYTHON_API_URL || 'http://localhost:8888',
+  baseURL: pythonBaseURL,
   timeout: 30000,
   withCredentials: false, // No credentials needed for Python API
   headers: {

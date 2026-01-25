@@ -1,8 +1,11 @@
 // Centralized API Configuration
 // All API endpoints should use these constants
 
-// Python Server API (for ESP32 communication, power management, etc.)
-export const PYTHON_API_URL = import.meta.env.VITE_PYTHON_API_URL || 'http://localhost:8888';
+// Python Server API (for ESP32 communication, face recognition, etc.)
+// In production, we proxy through the Node backend to avoid Mixed Content errors
+export const PYTHON_API_URL = import.meta.env.PROD
+  ? '/api/python'
+  : (import.meta.env.VITE_PYTHON_API_URL || 'http://localhost:8888');
 
 // Node.js Backend API (for MongoDB operations)
 // In production (Vercel), we use relative paths to trigger the Vercel Proxy (fixes Mixed Content / HTTPS errors)
