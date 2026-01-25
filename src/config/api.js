@@ -5,7 +5,10 @@
 export const PYTHON_API_URL = import.meta.env.VITE_PYTHON_API_URL || 'http://localhost:8888';
 
 // Node.js Backend API (for MongoDB operations)
-export const NODE_API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+// In production (Vercel), we use relative paths to trigger the Vercel Proxy (fixes Mixed Content / HTTPS errors)
+export const NODE_API_URL = import.meta.env.PROD
+  ? ''
+  : (import.meta.env.VITE_API_URL || 'http://localhost:5000');
 
 // Full API paths
 export const API = {

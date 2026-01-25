@@ -7,8 +7,13 @@ const isBrowser = typeof window !== 'undefined';
 const pendingRequests = new Map();
 
 // Create axios instance for Node.js backend (with credentials for auth)
+// Create axios instance for Node.js backend (with credentials for auth)
+const axiosBaseURL = import.meta.env.PROD
+  ? ''
+  : (import.meta.env.VITE_API_URL || 'http://localhost:5000');
+
 const axiosInstance = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000',
+  baseURL: axiosBaseURL,
   timeout: 30000, // 30 seconds
   withCredentials: true, // Important: Send cookies with requests for authentication
   headers: {
